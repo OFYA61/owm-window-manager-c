@@ -8,73 +8,88 @@
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
-struct system_graphics_cards{
+struct SystemGraphicsCards{
   char **cards;
   size_t count;
 };
 
-char **get_cards(size_t* n_out) {
+void SystemGraphicsCards_free(struct SystemGraphicsCards* sgc) {
+  for (size_t i = 0; i < sgc->count; ++i) {
+    free(sgc->cards[i]);
+  }
+  free(sgc->cards);
+}
+
+// On error, the `count` in the struct will be 0
+struct SystemGraphicsCards SystemGraphicsCards_discover() {
+  struct SystemGraphicsCards sgc = { NULL, 0 };
+
   DIR *d;
   struct dirent *dir;
   d = opendir("/dev/dri");
   if (!d) {
     perror("opendir");
     closedir(d);
-    return NULL;
+    return sgc;
   }
-  
-  uint32_t card_count = 0;
+
+  size_t i = 0;
+  size_t capacity = 2; // Have 2 slots initially
+  sgc.cards = malloc(capacity * sizeof(char *));
   while ((dir = readdir(d)) != NULL) {
     if (strstr(dir->d_name, "card") == NULL) {
       continue;
     }
-    card_count++;
-  }
-  *n_out = card_count;
-  closedir(d);
 
-  d = opendir("/dev/dri");
-  if (!d) {
-    perror("opendir");
-    closedir(d);
-    return NULL;
-  }
-
-  char** cards = malloc(sizeof(char *) * card_count);
-  uint32_t i = 0;
-  while ((dir = readdir(d)) != NULL) {
-    if (strstr(dir->d_name, "card") == NULL) {
-      continue;
+    if (i == capacity) { // Expand buffer if no space left
+      capacity++;
+      char **tmp_cards = realloc(sgc.cards, capacity * sizeof(char *));
+      if (tmp_cards == NULL) {
+        SystemGraphicsCards_free(&sgc);
+        sgc.count = 0;
+        return sgc;
+      }
+      sgc.cards = tmp_cards;
     }
-    cards[i] = (char *) malloc(sizeof(char) * strlen(dir->d_name) + 1);
-    mempcpy(cards[i], dir->d_name, sizeof(char) * strlen(dir->d_name));
+
+    sgc.cards[i] = (char *) malloc(sizeof(char) * strlen(dir->d_name) + 1);
+    mempcpy(sgc.cards[i], dir->d_name, sizeof(char) * strlen(dir->d_name));
     i++;
+    sgc.count = i;
   }
-
   closedir(d);
-  return cards;
+  return sgc;
 }
 
-void free_cards(char **cards, size_t n) {
-  for (size_t i = 0; i < n; ++ i) {
-    free(cards[i]);
-  }
-  free(cards);
-}
+struct ProbeResult {
+  uint32_t connector_id;
+  uint32_t encoder_id;
+  uint32_t crtc_id;
+};
 
-uint32_t main() {
-  size_t card_count;
-  char ** cards = get_cards(&card_count);
-  if (!cards) {
-    perror("get_cards");
-    return 1;
+struct ProbeResults {
+  struct ProbeResult* results;
+  size_t count;
+};
+
+struct ProbeResults ProbeResults_probeDrm() {
+  struct ProbeResults prs = { NULL, 0 };
+
+  struct SystemGraphicsCards sgc = SystemGraphicsCards_discover();
+  if (sgc.count == 0) {
+    fprintf(stderr, "No cards where found");
+    prs.count = 0;
+    return prs;
   }
 
+  int prs_size = 0;
+  int prs_capacity = 1;
+  prs.results = malloc(prs_capacity * sizeof(struct ProbeResult));
   char card_path[64];
-  for (size_t i = 0; i < card_count; ++i) {
+  for (size_t i = 0; i < sgc.count; ++i) {
     card_path[0] = '\0';
     strcat(card_path, "/dev/dri/");
-    strcat(card_path, cards[i]);
+    strcat(card_path, sgc.cards[i]);
 
     uint32_t fd = open(card_path, O_RDWR | O_CLOEXEC);
     if (fd < 0) {
@@ -88,8 +103,8 @@ uint32_t main() {
       continue;
     }
 
-    printf("Card %s\n", card_path);
-    printf("\tConnectors: %d\n", res->count_connectors);
+    // printf("Card %s\n", card_path);
+    // printf("\tConnectors: %d\n", res->count_connectors);
     for (uint32_t i = 0; i < res->count_connectors; ++i) {
       drmModeConnector* conn = drmModeGetConnector(fd, res->connectors[i]);
       if (!conn) {
@@ -103,11 +118,11 @@ uint32_t main() {
         continue;
       }
 
-      printf("\tConnector %d\n", conn->connector_id);
+      // printf("\tConnector %d\n", conn->connector_id);
 
       for (uint32_t m = 0; m < conn->count_modes; ++m) {
         drmModeModeInfo* mode = &conn->modes[m];
-        printf("\t\t%dx%d @ %dHz\n", mode->hdisplay, mode->vdisplay, mode->vrefresh);
+        // printf("\t\t%dx%d @ %dHz\n", mode->hdisplay, mode->vdisplay, mode->vrefresh);
       }
 
       drmModeEncoder *enc = NULL;
@@ -137,21 +152,45 @@ uint32_t main() {
 
       if (!crtc_id) {
         fprintf(stderr, "No compatible CRTC found\n");
-        drmModeFreeEncoder(enc);
-        drmModeFreeConnector(conn);
-        continue;
+        goto conn_enc_cleanup;
       }
-      printf("Using CRTC %u\n", crtc_id);
+      // printf("Using CRTC %u\n", crtc_id);
 
+      if (prs_size == prs_capacity) { // Expand buffer if no space left
+        prs_capacity++;
+        struct ProbeResult * tmp_results = realloc(prs.results, prs_capacity * sizeof(struct ProbeResult));
+        if (tmp_results == NULL) {
+          fprintf(stderr, "Failed to expand storage for ProbeResults");
+          goto conn_enc_cleanup;
+        }
+        prs.results = tmp_results;
+      }
+      struct ProbeResult pr = { conn->connector_id, enc->encoder_id, enc->crtc_id };
+      prs.results[prs_size] = pr;
+      prs_size++;
+      prs.count = prs_size;
+
+    conn_enc_cleanup:
       drmModeFreeEncoder(enc);
       drmModeFreeConnector(conn);
+
     }
 
     drmModeFreeResources(res);
     close(fd);
   }
 
-  free_cards(cards, card_count);
+  SystemGraphicsCards_free(&sgc);
 
-  return 0;
+  return prs;
+}
+
+int main() {
+  struct ProbeResults probeResults = ProbeResults_probeDrm();
+  if (probeResults.count == 0) {
+    return 1;
+  }
+  for (int i = 0; i < probeResults.count; ++i) {
+    printf("Conn:%d Enc:%d Crtc:%d\n", probeResults.results[i].connector_id, probeResults.results[i].encoder_id, probeResults.results[i].crtc_id);
+  }
 }
