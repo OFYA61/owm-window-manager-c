@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(drm_probe C)
+project(wm C)
 
 # Enable warnings
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
@@ -16,5 +16,5 @@ file(GLOB SRC_FILES src/*.c)
 add_executable(${PROJECT_NAME} ${SRC_FILES})
 
 # Link against libdrm
-target_link_libraries(drm_probe ${LIBDRM_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${LIBDRM_LIBRARIES})
 
