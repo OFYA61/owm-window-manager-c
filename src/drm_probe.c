@@ -1,3 +1,4 @@
+#include <drm.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -6,6 +7,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <xf86drm.h>
+#include <sys/mman.h>
 #include <xf86drmMode.h>
 #include <drm_mode.h>
 
@@ -72,7 +74,7 @@ struct DiscoveryDisplay {
   uint32_t connector_id;
   uint32_t encoder_id;
   uint32_t crtc_id;
-  struct DiscoveryDisplayMode* displayModes;
+  drmModeModeInfo* displayModes;
   uint32_t displayModesCount;
   char cardPath[64];
 };
@@ -85,19 +87,19 @@ struct DiscoveryDisplays {
 void DiscoveryDisplays_free(struct DiscoveryDisplays *displays) {
   for (int r = 0; r < displays->count; ++r){
     struct DiscoveryDisplay* d = &displays->results[r];
-    free(d->displayModes);
+    // free(d->displayModes);
   }
   free(displays->results);
 }
 
 void DiscoveryDisplays_log(struct DiscoveryDisplays *displays) {
   for (int i = 0; i < displays->count; ++i) {
-    printf("Card %d\n", i);
+    printf("Display %d\n", i);
     printf("\tConn:%d Enc:%d Crtc:%d\n", displays->results[i].connector_id, displays->results[i].encoder_id, displays->results[i].crtc_id);
     printf("\tModes\n");
     for (int m = 0; m < displays->results[i].displayModesCount; ++m) {
-      struct DiscoveryDisplayMode dm = displays->results[i].displayModes[m];
-      printf("\t\t%d: %dx%d @ %dHz\n", m, dm.h, dm.v, dm.hz);
+      drmModeModeInfo dm = displays->results[i].displayModes[m];
+      printf("\t\t%d: %dx%d @ %dHz\n", m, dm.hdisplay, dm.vdisplay, dm.vrefresh);
     }
   }
 }
@@ -140,19 +142,10 @@ struct DiscoveryDisplays DiscoveryDisplays_probeDRM() {
         drmModeFreeConnector(conn);
         continue;
       }
-      // Physical port has no counnection to a display
-      if (conn->connection != DRM_MODE_CONNECTED && conn->count_modes <= 0) {
+
+      if (conn->connection != DRM_MODE_CONNECTED && conn->count_modes <= 0) { // Physical port has no connection to a display
         drmModeFreeConnector(conn);
         continue;
-      }
-
-      struct DiscoveryDisplayMode* displayModes = malloc(conn->count_modes * sizeof(struct DiscoveryDisplayMode));
-      for (uint32_t m = 0; m < conn->count_modes; ++m) {
-        drmModeModeInfo* mode = &conn->modes[m];
-        struct DiscoveryDisplayMode dm = {
-          mode->hdisplay, mode->vdisplay, mode->vrefresh
-        };
-        displayModes[m] = dm;
       }
 
       drmModeEncoder *enc = NULL;
@@ -167,7 +160,6 @@ struct DiscoveryDisplays DiscoveryDisplays_probeDRM() {
       if (!enc) {
         fprintf(stderr, "No encoder found \n");
         drmModeFreeConnector(conn);
-        free(displayModes);
         continue;
       }
 
@@ -183,7 +175,6 @@ struct DiscoveryDisplays DiscoveryDisplays_probeDRM() {
 
       if (!crtc_id) {
         fprintf(stderr, "No compatible CRTC found\n");
-        free(displayModes);
         goto conn_enc_cleanup;
       }
 
@@ -192,7 +183,6 @@ struct DiscoveryDisplays DiscoveryDisplays_probeDRM() {
         struct DiscoveryDisplay * tmp_results = realloc(displays.results, prs_capacity * sizeof(struct DiscoveryDisplay));
         if (tmp_results == NULL) {
           fprintf(stderr, "Failed to expand storage for ProbeResults");
-          free(displayModes);
           goto conn_enc_cleanup;
         }
         displays.results = tmp_results;
@@ -201,11 +191,13 @@ struct DiscoveryDisplays DiscoveryDisplays_probeDRM() {
       struct DiscoveryDisplay display = {
         conn->connector_id,
         enc->encoder_id,
-        enc->crtc_id,
-        displayModes,
+        crtc_id,
+        NULL,
         conn->count_modes,
         ""
       };
+      display.displayModes = malloc(conn->count_modes * sizeof(drmModeModeInfo));
+      memcpy(display.displayModes, conn->modes, conn->count_modes * sizeof(drmModeModeInfo));
       strncpy(display.cardPath, card_path, strlen(card_path));
       displays.results[prs_size] = display;
       prs_size++;
@@ -227,10 +219,11 @@ struct DiscoveryDisplays DiscoveryDisplays_probeDRM() {
 }
 
 struct Display {
-  uint16_t v;
-  uint16_t h;
-  uint32_t hz;
+  drmModeModeInfo displayMode;
   uint32_t fd_card;
+  uint32_t connector_id;
+  uint32_t encoder_id;
+  uint32_t crtc_id;
 };
 
 struct Display Display_pick() {
@@ -242,7 +235,7 @@ struct Display Display_pick() {
 
   int n_card, n_mode;
 
-  printf("Pick the card you want to use, the number must be from 0 to %d: ", discoveryDisplays.count - 1);
+  printf("Pick the card you want to use, the number must be from 0 to %ld: ", discoveryDisplays.count - 1);
   fflush(stdin);
   scanf("%d", &n_card);
   if (n_card < 0 || n_card >= discoveryDisplays.count) {
@@ -251,7 +244,7 @@ struct Display Display_pick() {
     exit(1);
   }
 
-  printf("Pick the mode you want to use, the number must be from 0 to %d: ", discoveryDisplays.results[n_card].displayModesCount - 1);
+  printf("Pick the mode you want to use, the number must be from 0 to %ld: ", discoveryDisplays.results[n_card].displayModesCount - 1);
   fflush(stdin);
   scanf("%d", &n_mode);
   if (n_mode < 0 || n_mode >= discoveryDisplays.results[n_card].displayModesCount) {
@@ -260,16 +253,28 @@ struct Display Display_pick() {
     exit(1);
   }
 
-  struct DiscoveryDisplayMode displayMode = discoveryDisplays.results[n_card].displayModes[n_mode];
-  char *card_path = discoveryDisplays.results[n_card].cardPath;
+  printf("1\n");
+
+  struct DiscoveryDisplay discoveryDisplay = discoveryDisplays.results[n_card];
+  drmModeModeInfo displayMode = discoveryDisplay.displayModes[n_mode];
+  char *card_path = discoveryDisplay.cardPath;
   uint32_t fd_card = open(card_path, O_RDWR | O_CLOEXEC);
+  printf("2\n");
   if (fd_card < 0) {
     fprintf(stderr, "open: %s", card_path);
     DiscoveryDisplays_free(&discoveryDisplays);
     exit(1);
   }
-  struct Display display = {displayMode.v, displayMode.h, displayMode.hz, fd_card };
+  struct Display display = {
+    displayMode,
+    fd_card,
+    discoveryDisplay.connector_id,
+    discoveryDisplay.encoder_id,
+    discoveryDisplay.crtc_id
+  };
+  printf("3\n");
   DiscoveryDisplays_free(&discoveryDisplays);
+  printf("4\n");
 
   return display;
 }
@@ -281,12 +286,80 @@ void Display_close(struct Display *display) {
 int main() {
   struct Display display = Display_pick();
 
-  printf("Chosen display stats: %dx%d @ %dHz\n", display.h, display.v, display.hz);
+  printf("Chosen display stats: %dx%d @ %dHz\n", display.displayMode.hdisplay, display.displayMode.vdisplay, display.displayMode.vrefresh);
 
   struct drm_mode_create_dumb create = { 0 };
-  create.width = display.v;
-  create.height = display.h;
+  create.width = display.displayMode.hdisplay;
+  create.height = display.displayMode.vdisplay;
   create.bpp = 32;
+
+  if (drmIoctl(display.fd_card, DRM_IOCTL_MODE_CREATE_DUMB, &create) < 0) {
+    perror("drmIoctl");
+    Display_close(&display);
+    return 1;
+  }
+
+  uint32_t fb_id;
+  if (drmModeAddFB(
+    display.fd_card,
+    display.displayMode.hdisplay,
+    display.displayMode.vdisplay,
+    24,
+    32,
+    create.pitch,
+    create.handle,
+    &fb_id)
+  ) {
+    perror("drmModeAddFB");
+    Display_close(&display);
+    return 1;
+  }
+
+  struct drm_mode_map_dumb map = { 0 };
+  map.handle = create.handle;
+
+  if (drmIoctl(display.fd_card, DRM_IOCTL_MODE_MAP_DUMB, &map) < 0) {
+    perror("drmIoctl");
+    Display_close(&display);
+    return 1;
+  }
+
+  void *fb_ptr = mmap(NULL, create.size, PROT_READ | PROT_WRITE, MAP_SHARED, display.fd_card, map.offset);
+  uint32_t *pixel = fb_ptr;
+  for (uint32_t y = 0; y < display.displayMode.vdisplay; ++y) {
+    for (uint32_t x = 0; x < display.displayMode.hdisplay; ++x) {
+      pixel[x] = 0x000000FF;
+    }
+    pixel += create.pitch / 4;
+  }
+
+  drmModeCrtc *old_crtc = drmModeGetCrtc(display.fd_card, display.crtc_id);
+  drmModeSetCrtc(display.fd_card, display.crtc_id, 0, 0, 0, NULL, 0, NULL);
+  if (drmModeSetCrtc(display.fd_card, display.crtc_id, fb_id, 0, 0, &display.connector_id, 1, &display.displayMode)) {
+    perror("drmModeSetCrtc");
+    Display_close(&display);
+    return 1;
+  }
+
+  sleep(5);
+
+  drmModeSetCrtc(
+    display.fd_card,
+    old_crtc->crtc_id,
+    old_crtc->buffer_id,
+    old_crtc->x,
+    old_crtc->y,
+    &display.connector_id,
+    1,
+    &old_crtc->mode
+  );
+  munmap(fb_ptr, create.size);
+  drmModeRmFB(display.fd_card, fb_id);
+
+  struct drm_mode_destroy_dumb destory = { 0 };
+  destory.handle = create.handle;
+  drmIoctl(display.fd_card, DRM_IOCTL_MODE_DESTROY_DUMB, &destory);
+  drmModeFreeCrtc(old_crtc);
 
   Display_close(&display);
 
