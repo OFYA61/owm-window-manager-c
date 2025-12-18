@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <xf86drm.h>
 #include <xf86drmMode.h>
+#include <drm_mode.h>
 
 struct SystemGraphicsCards{
   char **cards;
@@ -61,30 +62,59 @@ struct SystemGraphicsCards SystemGraphicsCards_discover() {
   return sgc;
 }
 
-struct ProbeResult {
+struct DiscoveryDisplayMode {
+  uint16_t h;
+  uint16_t v;
+  uint32_t hz;
+};
+
+struct DiscoveryDisplay {
   uint32_t connector_id;
   uint32_t encoder_id;
   uint32_t crtc_id;
+  struct DiscoveryDisplayMode* displayModes;
+  uint32_t displayModesCount;
+  char cardPath[64];
 };
 
-struct ProbeResults {
-  struct ProbeResult* results;
+struct DiscoveryDisplays {
+  struct DiscoveryDisplay* results;
   size_t count;
 };
 
-struct ProbeResults ProbeResults_probeDrm() {
-  struct ProbeResults prs = { NULL, 0 };
+void DiscoveryDisplays_free(struct DiscoveryDisplays *displays) {
+  for (int r = 0; r < displays->count; ++r){
+    struct DiscoveryDisplay* d = &displays->results[r];
+    free(d->displayModes);
+  }
+  free(displays->results);
+}
+
+void DiscoveryDisplays_log(struct DiscoveryDisplays *displays) {
+  for (int i = 0; i < displays->count; ++i) {
+    printf("Card %d\n", i);
+    printf("\tConn:%d Enc:%d Crtc:%d\n", displays->results[i].connector_id, displays->results[i].encoder_id, displays->results[i].crtc_id);
+    printf("\tModes\n");
+    for (int m = 0; m < displays->results[i].displayModesCount; ++m) {
+      struct DiscoveryDisplayMode dm = displays->results[i].displayModes[m];
+      printf("\t\t%d: %dx%d @ %dHz\n", m, dm.h, dm.v, dm.hz);
+    }
+  }
+}
+
+struct DiscoveryDisplays DiscoveryDisplays_probeDRM() {
+  struct DiscoveryDisplays displays = { NULL, 0 };
 
   struct SystemGraphicsCards sgc = SystemGraphicsCards_discover();
   if (sgc.count == 0) {
     fprintf(stderr, "No cards where found");
-    prs.count = 0;
-    return prs;
+    displays.count = 0;
+    return displays;
   }
 
   int prs_size = 0;
   int prs_capacity = 1;
-  prs.results = malloc(prs_capacity * sizeof(struct ProbeResult));
+  displays.results = malloc(prs_capacity * sizeof(struct DiscoveryDisplay));
   char card_path[64];
   for (size_t i = 0; i < sgc.count; ++i) {
     card_path[0] = '\0';
@@ -103,8 +133,6 @@ struct ProbeResults ProbeResults_probeDrm() {
       continue;
     }
 
-    // printf("Card %s\n", card_path);
-    // printf("\tConnectors: %d\n", res->count_connectors);
     for (uint32_t i = 0; i < res->count_connectors; ++i) {
       drmModeConnector* conn = drmModeGetConnector(fd, res->connectors[i]);
       if (!conn) {
@@ -118,11 +146,13 @@ struct ProbeResults ProbeResults_probeDrm() {
         continue;
       }
 
-      // printf("\tConnector %d\n", conn->connector_id);
-
+      struct DiscoveryDisplayMode* displayModes = malloc(conn->count_modes * sizeof(struct DiscoveryDisplayMode));
       for (uint32_t m = 0; m < conn->count_modes; ++m) {
         drmModeModeInfo* mode = &conn->modes[m];
-        // printf("\t\t%dx%d @ %dHz\n", mode->hdisplay, mode->vdisplay, mode->vrefresh);
+        struct DiscoveryDisplayMode dm = {
+          mode->hdisplay, mode->vdisplay, mode->vrefresh
+        };
+        displayModes[m] = dm;
       }
 
       drmModeEncoder *enc = NULL;
@@ -137,6 +167,7 @@ struct ProbeResults ProbeResults_probeDrm() {
       if (!enc) {
         fprintf(stderr, "No encoder found \n");
         drmModeFreeConnector(conn);
+        free(displayModes);
         continue;
       }
 
@@ -152,23 +183,33 @@ struct ProbeResults ProbeResults_probeDrm() {
 
       if (!crtc_id) {
         fprintf(stderr, "No compatible CRTC found\n");
+        free(displayModes);
         goto conn_enc_cleanup;
       }
-      // printf("Using CRTC %u\n", crtc_id);
 
       if (prs_size == prs_capacity) { // Expand buffer if no space left
         prs_capacity++;
-        struct ProbeResult * tmp_results = realloc(prs.results, prs_capacity * sizeof(struct ProbeResult));
+        struct DiscoveryDisplay * tmp_results = realloc(displays.results, prs_capacity * sizeof(struct DiscoveryDisplay));
         if (tmp_results == NULL) {
           fprintf(stderr, "Failed to expand storage for ProbeResults");
+          free(displayModes);
           goto conn_enc_cleanup;
         }
-        prs.results = tmp_results;
+        displays.results = tmp_results;
       }
-      struct ProbeResult pr = { conn->connector_id, enc->encoder_id, enc->crtc_id };
-      prs.results[prs_size] = pr;
+
+      struct DiscoveryDisplay display = {
+        conn->connector_id,
+        enc->encoder_id,
+        enc->crtc_id,
+        displayModes,
+        conn->count_modes,
+        ""
+      };
+      strncpy(display.cardPath, card_path, strlen(card_path));
+      displays.results[prs_size] = display;
       prs_size++;
-      prs.count = prs_size;
+      displays.count = prs_size;
 
     conn_enc_cleanup:
       drmModeFreeEncoder(enc);
@@ -182,15 +223,72 @@ struct ProbeResults ProbeResults_probeDrm() {
 
   SystemGraphicsCards_free(&sgc);
 
-  return prs;
+  return displays;
+}
+
+struct Display {
+  uint16_t v;
+  uint16_t h;
+  uint32_t hz;
+  uint32_t fd_card;
+};
+
+struct Display Display_pick() {
+  struct DiscoveryDisplays discoveryDisplays = DiscoveryDisplays_probeDRM();
+  if (discoveryDisplays.count == 0) {
+    exit(1);
+  }
+  DiscoveryDisplays_log(&discoveryDisplays);
+
+  int n_card, n_mode;
+
+  printf("Pick the card you want to use, the number must be from 0 to %d: ", discoveryDisplays.count - 1);
+  fflush(stdin);
+  scanf("%d", &n_card);
+  if (n_card < 0 || n_card >= discoveryDisplays.count) {
+    fprintf(stderr, "The card you chose '%d' is not valid\n", n_card);
+    DiscoveryDisplays_free(&discoveryDisplays);
+    exit(1);
+  }
+
+  printf("Pick the mode you want to use, the number must be from 0 to %d: ", discoveryDisplays.results[n_card].displayModesCount - 1);
+  fflush(stdin);
+  scanf("%d", &n_mode);
+  if (n_mode < 0 || n_mode >= discoveryDisplays.results[n_card].displayModesCount) {
+    fprintf(stderr, "The card you chose '%d' is not valid\n", n_card);
+    DiscoveryDisplays_free(&discoveryDisplays);
+    exit(1);
+  }
+
+  struct DiscoveryDisplayMode displayMode = discoveryDisplays.results[n_card].displayModes[n_mode];
+  char *card_path = discoveryDisplays.results[n_card].cardPath;
+  uint32_t fd_card = open(card_path, O_RDWR | O_CLOEXEC);
+  if (fd_card < 0) {
+    fprintf(stderr, "open: %s", card_path);
+    DiscoveryDisplays_free(&discoveryDisplays);
+    exit(1);
+  }
+  struct Display display = {displayMode.v, displayMode.h, displayMode.hz, fd_card };
+  DiscoveryDisplays_free(&discoveryDisplays);
+
+  return display;
+}
+
+void Display_close(struct Display *display) {
+  close(display->fd_card);
 }
 
 int main() {
-  struct ProbeResults probeResults = ProbeResults_probeDrm();
-  if (probeResults.count == 0) {
-    return 1;
-  }
-  for (int i = 0; i < probeResults.count; ++i) {
-    printf("Conn:%d Enc:%d Crtc:%d\n", probeResults.results[i].connector_id, probeResults.results[i].encoder_id, probeResults.results[i].crtc_id);
-  }
+  struct Display display = Display_pick();
+
+  printf("Chosen display stats: %dx%d @ %dHz\n", display.h, display.v, display.hz);
+
+  struct drm_mode_create_dumb create = { 0 };
+  create.width = display.v;
+  create.height = display.h;
+  create.bpp = 32;
+
+  Display_close(&display);
+
+  return 0;
 }
