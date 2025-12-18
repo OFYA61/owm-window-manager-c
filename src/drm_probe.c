@@ -1,5 +1,6 @@
 #include <drm.h>
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -125,12 +126,12 @@ struct DiscoveryDisplays DiscoveryDisplays_probeDRM() {
 
     uint32_t fd = open(card_path, O_RDWR | O_CLOEXEC);
     if (fd < 0) {
-      fprintf(stderr, "open: %s", card_path);
+      fprintf(stderr, "open %s: %s", card_path, strerror(errno));
       continue;
     }
     drmModeRes* res = drmModeGetResources(fd);
     if (!res) {
-      fprintf(stderr, "drmModeGetResources: %s\n", card_path);
+      fprintf(stderr, "drmModeGetResources %s: %s\n", card_path, strerror(errno));
       close(fd);
       continue;
     }
@@ -253,15 +254,12 @@ struct Display Display_pick() {
     exit(1);
   }
 
-  printf("1\n");
-
   struct DiscoveryDisplay discoveryDisplay = discoveryDisplays.results[n_card];
   drmModeModeInfo displayMode = discoveryDisplay.displayModes[n_mode];
   char *card_path = discoveryDisplay.cardPath;
   uint32_t fd_card = open(card_path, O_RDWR | O_CLOEXEC);
-  printf("2\n");
   if (fd_card < 0) {
-    fprintf(stderr, "open: %s", card_path);
+    fprintf(stderr, "open %s: %s", card_path, strerror(errno));
     DiscoveryDisplays_free(&discoveryDisplays);
     exit(1);
   }
@@ -272,9 +270,8 @@ struct Display Display_pick() {
     discoveryDisplay.encoder_id,
     discoveryDisplay.crtc_id
   };
-  printf("3\n");
+
   DiscoveryDisplays_free(&discoveryDisplays);
-  printf("4\n");
 
   return display;
 }
@@ -334,7 +331,7 @@ int main() {
   }
 
   drmModeCrtc *old_crtc = drmModeGetCrtc(display.fd_card, display.crtc_id);
-  drmModeSetCrtc(display.fd_card, display.crtc_id, 0, 0, 0, NULL, 0, NULL);
+  // drmModeSetCrtc(display.fd_card, display.crtc_id, 0, 0, 0, NULL, 0, NULL);
   if (drmModeSetCrtc(display.fd_card, display.crtc_id, fb_id, 0, 0, &display.connector_id, 1, &display.displayMode)) {
     perror("drmModeSetCrtc");
     Display_close(&display);
