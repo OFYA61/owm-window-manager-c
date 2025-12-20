@@ -9,6 +9,24 @@
 #include <unistd.h>
 #include <xf86drmMode.h>
 
+struct SystemGraphicsCards{
+  char **cards;
+  size_t count;
+};
+
+struct DiscoveryDisplay {
+  uint32_t connector_id;
+  uint32_t encoder_id;
+  uint32_t crtc_id;
+  drmModeModeInfo* displayModes;
+  uint32_t displayModesCount;
+  char cardPath[64];
+};
+
+struct DiscoveryDisplays {
+  struct DiscoveryDisplay* results;
+  size_t count;
+};
 
 void SystemGraphicsCards_free(struct SystemGraphicsCards* sgc) {
   for (size_t i = 0; i < sgc->count; ++i) {
@@ -98,7 +116,7 @@ struct DiscoveryDisplays DiscoveryDisplays_probeDRM() {
     strcat(card_path, sgc.cards[i]);
 
     uint32_t fd = open(card_path, O_RDWR | O_CLOEXEC);
-    if (fd < 0) {
+    if (fd <= 0) {
       fprintf(stderr, "open %s: %s", card_path, strerror(errno));
       continue;
     }
@@ -204,7 +222,7 @@ struct Display Display_pick() {
   printf("Pick the card you want to use, the number must be from 0 to %ld: ", discoveryDisplays.count - 1);
   fflush(stdin);
   scanf("%ld", &n_card);
-  if (n_card < 0 || n_card >= discoveryDisplays.count) {
+  if (n_card >= discoveryDisplays.count) {
     fprintf(stderr, "The card you chose '%ld' is not valid\n", n_card);
     DiscoveryDisplays_free(&discoveryDisplays);
     exit(1);
@@ -213,7 +231,7 @@ struct Display Display_pick() {
   printf("Pick the mode you want to use, the number must be from 0 to %d: ", discoveryDisplays.results[n_card].displayModesCount - 1);
   fflush(stdin);
   scanf("%ld", &n_mode);
-  if (n_mode < 0 || n_mode >= discoveryDisplays.results[n_card].displayModesCount) {
+  if (n_mode >= discoveryDisplays.results[n_card].displayModesCount) {
     fprintf(stderr, "The mode you chose '%ld' is not valid\n", n_mode);
     DiscoveryDisplays_free(&discoveryDisplays);
     exit(1);
@@ -223,7 +241,7 @@ struct Display Display_pick() {
   drmModeModeInfo displayMode = discoveryDisplay.displayModes[n_mode];
   char *card_path = discoveryDisplay.cardPath;
   uint32_t fd_card = open(card_path, O_RDWR | O_CLOEXEC);
-  if (fd_card < 0) {
+  if (fd_card <= 0) {
     fprintf(stderr, "open %s: %s", card_path, strerror(errno));
     DiscoveryDisplays_free(&discoveryDisplays);
     exit(1);
