@@ -48,31 +48,15 @@ int main() {
   );
 
   uint32_t frame_count = 0;
-  struct FrameBuffer frameBuffers[2];
+  struct FrameBuffer frameBuffers[3];
   size_t front = 0;
   size_t back = 1;
 
-  if (FrameBuffer_create(
-    display.fd_card,
-    display.displayMode.hdisplay,
-    display.displayMode.vdisplay,
-    &frameBuffers[0]
-  )) {
-    fprintf(stderr, "Failed to create dumb frame buffer 0\n");
-    Display_close(&display);
-    return 1;
-  }
-  if (FrameBuffer_create(
-    display.fd_card,
-    display.displayMode.hdisplay,
-    display.displayMode.vdisplay,
-    &frameBuffers[1]
-  )) {
-    fprintf(stderr, "Failed to create dumb frame buffer 0\n");
-    FrameBuffer_destroy(display.fd_card, &frameBuffers[0]);
-    Display_close(&display);
-    return 1;
-  }
+  FrameBuffer_createList(
+    &display,
+    frameBuffers,
+    3
+  );
 
   if (drmModeSetCrtc(
     display.fd_card,
@@ -85,8 +69,7 @@ int main() {
     &display.displayMode
   )) {
     perror("drmModeSetCrtc");
-    FrameBuffer_destroy(display.fd_card, &frameBuffers[0]);
-    FrameBuffer_destroy(display.fd_card, &frameBuffers[1]);
+    FrameBuffer_destroyList(&display, frameBuffers, 3);
     Display_close(&display);
     return 1;
   }
@@ -143,8 +126,7 @@ int main() {
     frame_count++;
   }
 
-  FrameBuffer_destroy(display.fd_card, &frameBuffers[0]);
-  FrameBuffer_destroy(display.fd_card, &frameBuffers[1]);
+  FrameBuffer_destroyList(&display, frameBuffers, 3);
   Display_close(&display);
 
   return 0;

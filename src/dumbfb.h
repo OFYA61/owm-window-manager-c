@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "display.h"
+
 struct DumbFB {
   uint32_t fb_id;
   uint32_t handle;
@@ -12,5 +14,5 @@ struct DumbFB {
   void *map;
 };
 
-int DumbFB_create(int fd_card, uint32_t width, uint32_t height, struct DumbFB *out);
-void DumbFB_destroy(int fd_card, struct DumbFB* fb);
+int DumbFB_create(struct Display *display, struct DumbFB *out);
+void DumbFB_destroy(struct Display *disppay, struct DumbFB* fb);

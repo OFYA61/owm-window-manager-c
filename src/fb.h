@@ -1,5 +1,6 @@
 #pragma once
 
+#include "display.h"
 #include "dumbfb.h"
 
 enum FBState {
@@ -13,5 +14,7 @@ struct FrameBuffer {
   enum FBState state;
 };
 
-int FrameBuffer_create(int fd_card, uint32_t width, uint32_t height, struct FrameBuffer *out);
-void FrameBuffer_destroy(int fd_card, struct FrameBuffer *fb);
+int FrameBuffer_create(struct Display *display, struct FrameBuffer *out);
+int FrameBuffer_createList(struct Display *display, struct FrameBuffer *out, size_t count);
+void FrameBuffer_destroy(struct Display *display, struct FrameBuffer *fb);
+void FrameBuffer_destroyList(struct Display *display, struct FrameBuffer *fb, size_t count);
