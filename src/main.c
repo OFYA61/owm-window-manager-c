@@ -14,15 +14,27 @@
 #include "display.h"
 #include "dumbfb.h"
 
+struct FrameStats {
+  int pending;
+  uint64_t last_us;
+};
+
 void page_flip_handler(
   int fd_card,
   unsigned int frame,
-  unsigned int sec,
-  unsigned int usec,
+  unsigned int sec, // seconds
+  unsigned int usec, // microseconds
   void *data
 ) {
-  int *waiting  = data;
-  *waiting = 0;
+  struct FrameStats *stats = data;
+
+  uint64_t now = (uint64_t) sec * 1000000 + usec;
+  if (stats->last_us != 0) {
+    printf("Frame time: %lu us\n", now - stats->last_us);
+  }
+
+  stats->last_us = now;
+  stats->pending = 0;
 }
 
 int main() {
@@ -82,6 +94,11 @@ int main() {
     .page_flip_handler = page_flip_handler
   };
 
+  struct FrameStats frameStats = { 
+    .pending = 1,
+    .last_us = 0
+  };
+
   struct pollfd pfd = {
     .fd = display.fd_card,
     .events = POLLIN
@@ -94,19 +111,20 @@ int main() {
       for (uint32_t x = 0; x < display.displayMode.hdisplay; ++x) {
         pixel[x] = color;
       }
-      pixel += fb[back].pitch / 4;
+      pixel += fb[back].pitch / 4; // Divide by 4, since pixel jumps by 4 bits
     }
 
-    int waiting_for_flip = 1;
+    frameStats.pending = 1;
+
     drmModePageFlip(
       display.fd_card,
       display.crtc_id,
       fb[back].fb_id,
       DRM_MODE_PAGE_FLIP_EVENT,
-      &waiting_for_flip
+      &frameStats
     );
 
-    while (waiting_for_flip) {
+    while (frameStats.pending) {
       int ret = poll(&pfd, 1, -1); // -1 waits forever
       if (ret < 0) {
         perror("poll");
