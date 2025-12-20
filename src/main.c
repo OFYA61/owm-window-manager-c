@@ -3,13 +3,13 @@
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/poll.h>
 #include <sys/select.h>
 #include <unistd.h>
 #include <xf86drm.h>
 #include <sys/mman.h>
 #include <xf86drmMode.h>
 #include <drm_mode.h>
-#include <poll.h>
 
 #include "display.h"
 #include "dumbfb.h"
@@ -82,6 +82,11 @@ int main() {
     .page_flip_handler = page_flip_handler
   };
 
+  struct pollfd pfd = {
+    .fd = display.fd_card,
+    .events = POLLIN
+  };
+
   while (1) {
     uint32_t color = frame_count & 1 ? 0x00FF0000 : 0x000000FF;
     uint32_t *pixel = fb[back].map;
@@ -102,11 +107,14 @@ int main() {
     );
 
     while (waiting_for_flip) {
-      fd_set fds;
-      FD_ZERO(&fds);
-      FD_SET(display.fd_card, &fds);
-      select(display.fd_card + 1, &fds, NULL, NULL, NULL);
-      drmHandleEvent(display.fd_card, &ev);
+      int ret = poll(&pfd, 1, -1); // -1 waits forever
+      if (ret < 0) {
+        perror("poll");
+        break;
+      }
+      if (pfd.revents & POLLIN) {
+        drmHandleEvent(display.fd_card, &ev);
+      }
     }
 
     int tmp = front;
