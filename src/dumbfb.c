@@ -1,6 +1,7 @@
 #include "dumbfb.h"
-#include "drm.h"
 
+#include <drm_fourcc.h>
+#include <drm.h>
 #include <drm_mode.h>
 #include <stdio.h>
 #include <sys/mman.h>
@@ -18,19 +19,38 @@ int DumbFB_create(struct Display *display, struct DumbFB *out) {
     return 1;
   }
 
-  if (drmModeAddFB(
+  uint32_t handles[4] = { create.handle, 0, 0, 0 };
+  uint32_t pitches[4] = { create.pitch, 0, 0, 0 };
+  uint32_t offsets[4] = { 0, 0, 0, 0 };
+
+  if (drmModeAddFB2(
     display->fd_card,
     create.width,
     create.height,
-    24,
-    32,
-    create.pitch,
-    create.handle,
-    &out->fb_id
+    DRM_FORMAT_XRGB8888,
+    handles,
+    pitches,
+    offsets,
+    &out->fb_id,
+    0
   )) {
     perror("drmModeAddFB");
     return 1;
   }
+
+  // if (drmModeAddFB(
+  //   display->fd_card,
+  //   create.width,
+  //   create.height,
+  //   24,
+  //   32,
+  //   create.pitch,
+  //   create.handle,
+  //   &out->fb_id
+  // )) {
+  //   perror("drmModeAddFB");
+  //   return 1;
+  // }
 
   struct drm_mode_map_dumb map = { 0 };
   map.handle = create.handle;

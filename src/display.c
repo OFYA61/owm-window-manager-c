@@ -1,4 +1,5 @@
 #include "display.h"
+#include "drm.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -7,7 +8,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <xf86drm.h>
 #include <xf86drmMode.h>
+#include <drm_fourcc.h>
 
 struct SystemGraphicsCards{
   char **cards;
@@ -18,6 +21,7 @@ struct DiscoveryDisplay {
   uint32_t connector_id;
   uint32_t encoder_id;
   uint32_t crtc_id;
+  uint32_t crtc_index;
   drmModeModeInfo* displayModes;
   uint32_t displayModesCount;
   char cardPath[64];
@@ -158,9 +162,11 @@ struct DiscoveryDisplays DiscoveryDisplays_probeDRM() {
       printf("Using encoder %u\n", enc->encoder_id);
 
       uint32_t crtc_id = 0;
+      uint32_t crtc_index = 0;
       for (int j = 0; j < res->count_crtcs; ++j) {
         if (enc->possible_crtcs & (1 << j)) {
           crtc_id = res->crtcs[j];
+          crtc_index = j;
           break;
         }
       }
@@ -184,10 +190,12 @@ struct DiscoveryDisplays DiscoveryDisplays_probeDRM() {
         conn->connector_id,
         enc->encoder_id,
         crtc_id,
+        crtc_index,
         NULL,
         conn->count_modes,
         ""
       };
+
       display.displayModes = malloc(conn->count_modes * sizeof(drmModeModeInfo));
       memcpy(display.displayModes, conn->modes, conn->count_modes * sizeof(drmModeModeInfo));
       strncpy(display.cardPath, card_path, strlen(card_path));
@@ -246,15 +254,107 @@ struct Display Display_pick() {
     DiscoveryDisplays_free(&discoveryDisplays);
     exit(1);
   }
-  struct Display display = {
-    displayMode,
-    fd_card,
-    discoveryDisplay.connector_id,
-    discoveryDisplay.encoder_id,
-    discoveryDisplay.crtc_id
-  };
+
+  struct Display display = { 0 };
+  display.displayMode = displayMode;
+  display.fd_card = fd_card;
+  display.connector_id = discoveryDisplay.connector_id;
+  display.encoder_id = discoveryDisplay.encoder_id;
+  display.crtc_id = discoveryDisplay.crtc_id;
+  display.crtc_index = discoveryDisplay.crtc_index;
 
   DiscoveryDisplays_free(&discoveryDisplays);
+
+  if (drmSetClientCap(fd_card, DRM_CLIENT_CAP_ATOMIC, 1) != 0) {
+    fprintf(stderr, "Atomic modesetting not supported\n");
+    Display_close(&display);
+    exit(1);
+  }
+  if (drmSetClientCap(fd_card, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1) != 0) {
+    fprintf(stderr, "Universal planes not supported\n");
+    Display_close(&display);
+    exit(1);
+  }
+
+  int plane_primary = -1;
+  int plane_cursor = -1;
+  int plane_overlay = -1;
+  drmModePlaneRes *planes = drmModeGetPlaneResources(fd_card);
+  for (size_t i = 0; i < planes->count_planes; ++i) {
+    uint32_t plane_id = planes->planes[i];
+    drmModePlane *planePtr = drmModeGetPlane(fd_card, plane_id);
+    drmModeObjectProperties *props = drmModeObjectGetProperties(fd_card, planes->planes[i], DRM_MODE_OBJECT_PLANE);
+    if (!props) continue;
+
+    uint64_t type_val = 9999;
+    for (size_t i = 0; i < props->count_props; ++i) {
+      drmModePropertyRes* prop = drmModeGetProperty(fd_card, props->props[i]);
+      if (strcmp(prop->name, "type") == 0) {
+        type_val = props->prop_values[i];
+      }
+      drmModeFreeProperty(prop);
+    }
+
+    if (planePtr->possible_crtcs & (1 << display.crtc_index)) {
+      printf("DRM_FORMAT_XRGB8888: %c%c%c%c (0x%x)\n",
+             DRM_FORMAT_XRGB8888& 0xFF,
+             (DRM_FORMAT_XRGB8888>> 8) & 0xFF,
+             (DRM_FORMAT_XRGB8888>> 16) & 0xFF,
+             (DRM_FORMAT_XRGB8888>> 24) & 0xFF,
+             DRM_FORMAT_XRGB8888
+             );
+      for (size_t i = 0; i < planePtr->count_formats; ++i) {
+        uint32_t format = planePtr->formats[i];
+        printf("  format: %c%c%c%c (0x%x)\n",
+               format & 0xFF,
+               (format >> 8) & 0xFF,
+               (format >> 16) & 0xFF,
+               (format >> 24) & 0xFF,
+               format
+               );
+      }
+
+      switch (type_val) {
+        case DRM_PLANE_TYPE_OVERLAY:
+          plane_overlay = plane_id;
+          break;
+        case DRM_PLANE_TYPE_PRIMARY:
+          plane_primary = plane_id;
+          break;
+        case DRM_PLANE_TYPE_CURSOR:
+          plane_cursor = plane_id;
+          break;
+        case 3:
+          fprintf(stderr, "Unknown plane type %ld\n", type_val);
+          break;
+      }
+    }
+
+    drmModeFreePlane(planePtr);
+  }
+
+  if (plane_primary == -1 || plane_cursor == -1 || plane_overlay == -1) {
+    fprintf(
+      stderr,
+      "Failed to find a plane which is compatible with the crtc with ID %d, PRIMARY(%s) CURSOR(%s) OVERLAY(%s)",
+      display.crtc_id,
+      plane_primary == -1 ? "NOT FOUND" : "FOUND",
+      plane_cursor == -1 ? "NOT FOUND" : "FOUND",
+      plane_overlay == -1 ? "NOT FOUND" : "FOUND"
+    );
+    Display_close(&display);
+    exit(1);
+  }
+
+  display.plane_primary = plane_primary;
+  display.plane_cursor = plane_cursor;
+  display.plane_overlay = plane_overlay;
+
+  if (drmModeCreatePropertyBlob(display.fd_card, &display.displayMode, sizeof(display.displayMode), &display.mode_blob_id) != 0) {
+    perror("drmModeCreatePropertyBlob");
+    Display_close(&display);
+    exit(1);
+  }
 
   return display;
 }
