@@ -52,11 +52,15 @@ int main() {
   size_t front = 0;
   size_t back = 1;
 
-  FrameBuffer_createList(
+  if (FrameBuffer_createList(
     &display,
     frameBuffers,
     3
-  );
+  )) {
+    perror("FrameBuffer_createList");
+    Display_close(&display);
+    return 1;
+  }
 
   if (drmModeSetCrtc(
     display.fd_card,
