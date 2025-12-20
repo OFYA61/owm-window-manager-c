@@ -12,7 +12,7 @@
 #include <drm_mode.h>
 
 #include "display.h"
-#include "dumbfb.h"
+#include "fb.h"
 
 struct FrameStats {
   int pending;
@@ -48,26 +48,28 @@ int main() {
   );
 
   uint32_t frame_count = 0;
-  struct DumbFB fb[2];
+  struct FrameBuffer frameBuffers[2];
   size_t front = 0;
   size_t back = 1;
-  if (DumbFB_create(
+
+  if (FrameBuffer_create(
     display.fd_card,
     display.displayMode.hdisplay,
     display.displayMode.vdisplay,
-    &fb[0]
+    &frameBuffers[0]
   )) {
     fprintf(stderr, "Failed to create dumb frame buffer 0\n");
     Display_close(&display);
     return 1;
   }
-  if (DumbFB_create(
+  if (FrameBuffer_create(
     display.fd_card,
     display.displayMode.hdisplay,
     display.displayMode.vdisplay,
-    &fb[1]
+    &frameBuffers[1]
   )) {
     fprintf(stderr, "Failed to create dumb frame buffer 0\n");
+    FrameBuffer_destroy(display.fd_card, &frameBuffers[0]);
     Display_close(&display);
     return 1;
   }
@@ -75,7 +77,7 @@ int main() {
   if (drmModeSetCrtc(
     display.fd_card,
     display.crtc_id,
-    fb[front].fb_id,
+    frameBuffers[front].buffer.fb_id,
     0,
     0,
     &display.connector_id,
@@ -83,8 +85,8 @@ int main() {
     &display.displayMode
   )) {
     perror("drmModeSetCrtc");
-    DumbFB_destroy(display.fd_card, &fb[0]);
-    DumbFB_destroy(display.fd_card, &fb[1]);
+    FrameBuffer_destroy(display.fd_card, &frameBuffers[0]);
+    FrameBuffer_destroy(display.fd_card, &frameBuffers[1]);
     Display_close(&display);
     return 1;
   }
@@ -106,12 +108,12 @@ int main() {
 
   while (1) {
     uint32_t color = frame_count & 1 ? 0x00FF0000 : 0x000000FF;
-    uint32_t *pixel = fb[back].map;
+    uint32_t *pixel = frameBuffers[back].buffer.map;
     for (uint32_t y = 0; y < display.displayMode.vdisplay; ++y) {
       for (uint32_t x = 0; x < display.displayMode.hdisplay; ++x) {
         pixel[x] = color;
       }
-      pixel += fb[back].pitch / 4; // Divide by 4, since pixel jumps by 4 bits
+      pixel += frameBuffers[back].buffer.pitch / 4; // Divide by 4, since pixel jumps by 4 bits
     }
 
     frameStats.pending = 1;
@@ -119,7 +121,7 @@ int main() {
     drmModePageFlip(
       display.fd_card,
       display.crtc_id,
-      fb[back].fb_id,
+      frameBuffers[back].buffer.fb_id,
       DRM_MODE_PAGE_FLIP_EVENT,
       &frameStats
     );
@@ -141,8 +143,8 @@ int main() {
     frame_count++;
   }
 
-  DumbFB_destroy(display.fd_card, &fb[0]);
-  DumbFB_destroy(display.fd_card, &fb[1]);
+  FrameBuffer_destroy(display.fd_card, &frameBuffers[0]);
+  FrameBuffer_destroy(display.fd_card, &frameBuffers[1]);
   Display_close(&display);
 
   return 0;
