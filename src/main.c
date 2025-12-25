@@ -18,30 +18,30 @@ void PlaneProperties_init() {
   drmModeAtomicReq *atomicReq = drmModeAtomicAlloc();
 
   PrimaryPlaneProperties* plane_props = &RENDER_DISPLAY.display->plane_primary_properties;
-  OfyaDisplay *display = RENDER_DISPLAY.display;
-  drmModeModeInfo* mode = &display->display_modes[RENDER_DISPLAY.selected_mode_idx];
+  OfyaDisplay *render_display = RENDER_DISPLAY.display;
+  drmModeModeInfo* mode = &render_display->display_modes[RENDER_DISPLAY.selected_mode_idx];
 
-  drmModeAtomicAddProperty(atomicReq, display->connector_id, plane_props->connector_crtc_id, display->crtc_id);
+  drmModeAtomicAddProperty(atomicReq, render_display->connector_id, plane_props->connector_crtc_id, render_display->crtc_id);
 
   // CRTC
-  drmModeAtomicAddProperty(atomicReq, display->crtc_id, plane_props->crtc_activate, 1);
-  drmModeAtomicAddProperty(atomicReq, display->crtc_id, plane_props->crtc_mode_id, RENDER_DISPLAY.property_blob_id);
+  drmModeAtomicAddProperty(atomicReq, render_display->crtc_id, plane_props->crtc_activate, 1);
+  drmModeAtomicAddProperty(atomicReq, render_display->crtc_id, plane_props->crtc_mode_id, RENDER_DISPLAY.property_blob_id);
 
   // Plane
-  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_fb_id, RENDER_CONTEXT.frameBuffers[RENDER_CONTEXT.displayedBufferIdx].buffer.fb_id);
-  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_crtc_id, display->crtc_id);
-  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_crtc_x, 0);
-  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_crtc_y, 0);
-  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_crtc_w, mode->hdisplay);
-  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_crtc_h, mode->vdisplay);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_fb_id, RENDER_CONTEXT.frameBuffers[RENDER_CONTEXT.displayedBufferIdx].buffer.fb_id);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_crtc_id, render_display->crtc_id);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_crtc_x, 0);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_crtc_y, 0);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_crtc_w, mode->hdisplay);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_crtc_h, mode->vdisplay);
 
   // SRC are 16.16 fixed-point
-  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_src_x, 0);
-  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_src_y, 0);
-  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_src_w, mode->hdisplay << 16);
-  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_src_h, mode->vdisplay << 16);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_src_x, 0);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_src_y, 0);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_src_w, mode->hdisplay << 16);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_src_h, mode->vdisplay << 16);
 
-  if (drmModeAtomicCommit(display->fd_card, atomicReq, DRM_MODE_ATOMIC_ALLOW_MODESET, NULL) != 0) {
+  if (drmModeAtomicCommit(render_display->fd_card, atomicReq, DRM_MODE_ATOMIC_ALLOW_MODESET, NULL) != 0) {
     perror("drmModeAtomicCommit INIT");
   }
   drmModeAtomicFree(atomicReq);
@@ -91,7 +91,6 @@ int commitAtomicRenderRequest(uint32_t fb_id, OfyaFlipEvent *flipEvent) {
 
 
 int main() {
-  // OfyaDisplays ofya_displays = { 0 };
   if (OfyaDisplays_scan()) {
     perror("OfyaDisplay_scan");
     return 1;

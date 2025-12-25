@@ -355,7 +355,7 @@ int OfyaRenderDisplay_pick() {
     return 1;
   }
 
-  printf("Selected display stats: %dx%d %dHz", mode.hdisplay, mode.vdisplay, mode.vrefresh);
+  printf("Selected display stats: %dx%d %dHz\n", mode.hdisplay, mode.vdisplay, mode.vrefresh);
 
   RENDER_DISPLAY.display = display;
   RENDER_DISPLAY.property_blob_id = property_blob_id;
