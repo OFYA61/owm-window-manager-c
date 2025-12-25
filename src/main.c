@@ -1,8 +1,12 @@
 #include <drm.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <linux/kd.h>
+#include <linux/vt.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/ioctl.h>
 #include <sys/poll.h>
 #include <sys/select.h>
 #include <unistd.h>
@@ -10,9 +14,27 @@
 #include <sys/mman.h>
 #include <xf86drmMode.h>
 #include <drm_mode.h>
+#include <sys/ioctl.h>
+#include <signal.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
 
 #include "display.h"
+#include "input.h"
 #include "render.h"
+
+// int tty_fd;
+//
+// void vt_release(int sig) {
+//     ioctl(tty_fd, KDSETMODE, KD_TEXT);
+//     ioctl(tty_fd, VT_RELDISP, 1);
+// }
+//
+// void vt_acquire(int sig) {
+//     ioctl(tty_fd, VT_RELDISP, VT_ACKACQ);
+//     ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
+// }
 
 void PlaneProperties_init() {
   drmModeAtomicReq *atomicReq = drmModeAtomicAlloc();
@@ -21,7 +43,11 @@ void PlaneProperties_init() {
   OfyaDisplay *render_display = RENDER_DISPLAY.display;
   drmModeModeInfo* mode = &render_display->display_modes[RENDER_DISPLAY.selected_mode_idx];
 
+  // TODO: Proper multi-output routing
+  // NVIDIA + USB-C mirrors connectors onto a single CRTC.
+  // This needs driver-specific handling.
   drmModeAtomicAddProperty(atomicReq, render_display->connector_id, plane_props->connector_crtc_id, render_display->crtc_id);
+
 
   // CRTC
   drmModeAtomicAddProperty(atomicReq, render_display->crtc_id, plane_props->crtc_activate, 1);
@@ -89,8 +115,34 @@ int commitAtomicRenderRequest(uint32_t fb_id, OfyaFlipEvent *flipEvent) {
   return commitResult;
 }
 
+void cleanup() {
+}
 
 int main() {
+  int kbd_fd = open_keyboard_device();
+  // tty_fd = open("/dev/tty0", O_RDWR | O_CLOEXEC);
+  // if (tty_fd < 0) {
+  //   perror("open /dev/tty0");
+  //   close(kbd_fd);
+  //   return 1;
+  // }
+  // struct vt_mode vtmode = {
+  //   .mode = VT_PROCESS,
+  //   .relsig = SIGUSR1,
+  //   .acqsig = SIGUSR2
+  // };
+  // ioctl(tty_fd, VT_SETMODE, &vtmode);
+  // signal(SIGUSR1, vt_release);
+  // signal(SIGUSR2, vt_acquire);
+  // atexit(cleanup);
+  // signal(SIGINT, exit);
+  // signal(SIGTERM, exit);
+
+  if (kbd_fd < 0) {
+    perror("Failed to find keybaod\n");
+    return 1;
+  }
+
   if (OfyaDisplays_scan()) {
     perror("OfyaDisplay_scan");
     return 1;
@@ -116,9 +168,9 @@ int main() {
     .page_flip_handler = page_flip_handler
   };
 
-  struct pollfd pfd = {
-    .fd = display->fd_card,
-    .events = POLLIN
+  struct pollfd pfds[2] = {
+    { .fd = display->fd_card, .events = POLLIN },
+    { .fd = kbd_fd, .events = POLLIN}
   };
 
   while (1) {
@@ -152,14 +204,33 @@ int main() {
     }
 
     // Poll for events
-    int ret = poll(&pfd, 1, -1); // -1 waits forever
-    if (ret > 0 && pfd.revents & POLLIN) {
-      drmHandleEvent(display->fd_card, &ev);
+    int ret = poll(pfds, 2, -1); // -1 waits forever
+    if (ret > 0) {
+      if (pfds[0].revents & POLLIN) {
+        drmHandleEvent(display->fd_card, &ev);
+      }
+
+      if (pfds[1].revents & POLLIN) {
+        if (handle_keybaord(kbd_fd)) {
+          printf("Got some event from the keyboard handler\n");
+          break;
+        }
+      }
     }
     usleep(1000);
 
     frame_count++;
   }
+
+  // ioctl(tty_fd, KDSETMODE, KD_TEXT);
+  //
+  // struct vt_mode vtmode2 = {
+  //   .mode = VT_AUTO
+  // };
+  // ioctl(tty_fd, VT_SETMODE, &vtmode2);
+  // close(tty_fd);
+  release_keyboard(kbd_fd);
+  close(kbd_fd);
 
   OfyaRenderContext_close();
   OfyaDisplays_close();
