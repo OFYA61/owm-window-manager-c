@@ -44,7 +44,7 @@ void page_flip_handler(
 
   struct FlipContext *ctx = &flipContext;
 
-  printf("Displayed buffer %d, frame time %lu us\n", newDisplayed, ctx->frameTime);
+  // printf("Displayed buffer %d, frame time %lu us\n", newDisplayed, ctx->frameTime);
 
   uint64_t now = (uint64_t) sec * 1000000 + usec;
   if (ctx->lastTimestamp != 0) {
@@ -77,68 +77,68 @@ uint32_t get_prop_id(int fd, uint32_t obj_id, uint32_t obj_type, const char *nam
 }
 
 struct PlaneProperties {
-    uint32_t connector_crtc_id;
+  uint32_t connector_crtc_id;
 
-    uint32_t crtc_activate;
-    uint32_t crtc_mode_id;
+  uint32_t crtc_activate;
+  uint32_t crtc_mode_id;
 
-    uint32_t plane_fb_id;
-    uint32_t plane_crtc_id;
-    uint32_t plane_crtc_x;
-    uint32_t plane_crtc_y;
-    uint32_t plane_crtc_w;
-    uint32_t plane_crtc_h;
-    uint32_t plane_src_x;
-    uint32_t plane_src_y;
-    uint32_t plane_src_w;
-    uint32_t plane_src_h;
+  uint32_t plane_fb_id;
+  uint32_t plane_crtc_id;
+  uint32_t plane_crtc_x;
+  uint32_t plane_crtc_y;
+  uint32_t plane_crtc_w;
+  uint32_t plane_crtc_h;
+  uint32_t plane_src_x;
+  uint32_t plane_src_y;
+  uint32_t plane_src_w;
+  uint32_t plane_src_h;
 };
 
 static struct PlaneProperties planeProps;
 
 void PlaneProperties_init(struct Display *display) {
-    planeProps.connector_crtc_id = get_prop_id(display->fd_card, display->connector_id, DRM_MODE_OBJECT_CONNECTOR, "CRTC_ID");
+  planeProps.connector_crtc_id = get_prop_id(display->fd_card, display->connector_id, DRM_MODE_OBJECT_CONNECTOR, "CRTC_ID");
 
-    planeProps.crtc_activate = get_prop_id(display->fd_card, display->crtc_id, DRM_MODE_OBJECT_CRTC, "ACTIVE");
-    planeProps.crtc_mode_id = get_prop_id(display->fd_card, display->crtc_id, DRM_MODE_OBJECT_CRTC, "MODE_ID");
+  planeProps.crtc_activate = get_prop_id(display->fd_card, display->crtc_id, DRM_MODE_OBJECT_CRTC, "ACTIVE");
+  planeProps.crtc_mode_id = get_prop_id(display->fd_card, display->crtc_id, DRM_MODE_OBJECT_CRTC, "MODE_ID");
 
-    planeProps.plane_fb_id = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "FB_ID");
-    planeProps.plane_crtc_id = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_ID");
-    planeProps.plane_crtc_x = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_X");
-    planeProps.plane_crtc_y = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_Y");
-    planeProps.plane_crtc_w = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_W");
-    planeProps.plane_crtc_h = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_H");
-    planeProps.plane_src_x = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_X");
-    planeProps.plane_src_y = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_Y");
-    planeProps.plane_src_w = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_W");
-    planeProps.plane_src_h = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_H");
+  planeProps.plane_fb_id = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "FB_ID");
+  planeProps.plane_crtc_id = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_ID");
+  planeProps.plane_crtc_x = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_X");
+  planeProps.plane_crtc_y = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_Y");
+  planeProps.plane_crtc_w = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_W");
+  planeProps.plane_crtc_h = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_H");
+  planeProps.plane_src_x = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_X");
+  planeProps.plane_src_y = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_Y");
+  planeProps.plane_src_w = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_W");
+  planeProps.plane_src_h = get_prop_id(display->fd_card, display->plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_H");
 
-    drmModeAtomicReq *atomicReq = drmModeAtomicAlloc();
+  drmModeAtomicReq *atomicReq = drmModeAtomicAlloc();
 
-    drmModeAtomicAddProperty(atomicReq, display->connector_id, planeProps.connector_crtc_id, display->crtc_id);
+  drmModeAtomicAddProperty(atomicReq, display->connector_id, planeProps.connector_crtc_id, display->crtc_id);
 
-    // CRTC
-    drmModeAtomicAddProperty(atomicReq, display->crtc_id, planeProps.crtc_activate, 1);
-    drmModeAtomicAddProperty(atomicReq, display->crtc_id, planeProps.crtc_mode_id, display->mode_blob_id);
+  // CRTC
+  drmModeAtomicAddProperty(atomicReq, display->crtc_id, planeProps.crtc_activate, 1);
+  drmModeAtomicAddProperty(atomicReq, display->crtc_id, planeProps.crtc_mode_id, display->mode_blob_id);
 
-    // Plane
-    drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_fb_id, flipContext.frameBuffers[flipContext.displayedBuffer].buffer.fb_id);
-    drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_crtc_id, display->crtc_id);
-    drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_crtc_x, 0);
-    drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_crtc_y, 0);
-    drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_crtc_w, display->displayMode.hdisplay);
-    drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_crtc_h, display->displayMode.vdisplay);
+  // Plane
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_fb_id, flipContext.frameBuffers[flipContext.displayedBuffer].buffer.fb_id);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_crtc_id, display->crtc_id);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_crtc_x, 0);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_crtc_y, 0);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_crtc_w, display->displayMode.hdisplay);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_crtc_h, display->displayMode.vdisplay);
 
-    // SRC are 16.16 fixed-point
-    drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_src_x, 0);
-    drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_src_y, 0);
-    drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_src_w, display->displayMode.hdisplay << 16);
-    drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_src_h, display->displayMode.vdisplay << 16);
+  // SRC are 16.16 fixed-point
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_src_x, 0);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_src_y, 0);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_src_w, display->displayMode.hdisplay << 16);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_src_h, display->displayMode.vdisplay << 16);
 
-    if (drmModeAtomicCommit(display->fd_card, atomicReq, DRM_MODE_ATOMIC_ALLOW_MODESET, NULL) != 0) {
-      perror("drmModeAtomicCommit INIT");
-    }
-    drmModeAtomicFree(atomicReq);
+  if (drmModeAtomicCommit(display->fd_card, atomicReq, DRM_MODE_ATOMIC_ALLOW_MODESET, NULL) != 0) {
+    perror("drmModeAtomicCommit INIT");
+  }
+  drmModeAtomicFree(atomicReq);
 }
 
 int commitAtomicRenderRequest(struct Display *display, uint32_t fb_id, struct FlipEvent *flipEvent) {
@@ -146,6 +146,29 @@ int commitAtomicRenderRequest(struct Display *display, uint32_t fb_id, struct Fl
 
   // Plane
   drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_fb_id, fb_id);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_crtc_id, display->crtc_id);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_crtc_x, 0);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_crtc_y, 0);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_crtc_w, display->displayMode.hdisplay);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_crtc_h, display->displayMode.vdisplay);
+
+  // SRC are 16.16 fixed-point
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_src_x, 0);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_src_y, 0);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_src_w, display->displayMode.hdisplay << 16);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, planeProps.plane_src_h, display->displayMode.vdisplay << 16);
+
+  int ret = drmModeAtomicCommit(
+    display->fd_card,
+    atomicReq,
+    DRM_MODE_ATOMIC_TEST_ONLY,
+    NULL
+  );
+  if (ret != 0) {
+    perror("drmModeAtomicCommit TEST");
+    drmModeAtomicFree(atomicReq);
+    return ret;
+  }
 
   int commitResult = drmModeAtomicCommit(display->fd_card, atomicReq, DRM_MODE_ATOMIC_NONBLOCK | DRM_MODE_PAGE_FLIP_EVENT, flipEvent);
   if (commitResult != 0) {
@@ -191,9 +214,9 @@ int main() {
     return 1;
   }
 
-  PlaneProperties_init(&display);
-
   flipContext.frameBuffers[flipContext.displayedBuffer].state = FB_DISPLAYED;
+
+  PlaneProperties_init(&display);
 
   drmEventContext ev = {
     .version = DRM_EVENT_CONTEXT_VERSION,
@@ -206,7 +229,7 @@ int main() {
   };
 
   while (1) {
-    
+
     int renderFrameBufferIdx = find_free_buffer(flipContext.frameBuffers);
     if (renderFrameBufferIdx < 0) {
       // This should not happen, but don't crash yet
