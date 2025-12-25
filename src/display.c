@@ -4,6 +4,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,49 +13,34 @@
 #include <xf86drmMode.h>
 #include <drm_fourcc.h>
 
-struct SystemGraphicsCards{
+OfyaDisplays DISPLAYS = { NULL, 0 };
+OfyaRenderDisplay RENDER_DISPLAY = { NULL, 0 };
+
+typedef struct {
   char **cards;
   size_t count;
-};
+} OfyaDRMGraphicsCards;
 
-struct DiscoveryDisplay {
-  uint32_t connector_id;
-  uint32_t encoder_id;
-  uint32_t crtc_id;
-  uint32_t crtc_index;
-  drmModeModeInfo* displayModes;
-  uint32_t displayModesCount;
-  char cardPath[64];
-};
-
-struct DiscoveryDisplays {
-  struct DiscoveryDisplay* results;
-  size_t count;
-};
-
-void SystemGraphicsCards_free(struct SystemGraphicsCards* sgc) {
-  for (size_t i = 0; i < sgc->count; ++i) {
-    free(sgc->cards[i]);
+void OfyaDRMGraphicsCard_free(OfyaDRMGraphicsCards* gcs) {
+  for (size_t i = 0; i < gcs->count; ++i) {
+    free(gcs->cards[i]);
   }
-  free(sgc->cards);
+  free(gcs->cards);
 }
 
-// On error, the `count` in the struct will be 0
-struct SystemGraphicsCards SystemGraphicsCards_discover() {
-  struct SystemGraphicsCards sgc = { NULL, 0 };
-
+int OfyaDRMGraphicsCard_discover(OfyaDRMGraphicsCards* out) {
   DIR *d;
   struct dirent *dir;
   d = opendir("/dev/dri");
   if (!d) {
     perror("opendir");
     closedir(d);
-    return sgc;
+    return 1;
   }
 
   size_t i = 0;
   size_t capacity = 2; // Have 2 slots initially
-  sgc.cards = malloc(capacity * sizeof(char *));
+  out->cards = malloc(capacity * sizeof(char *));
   while ((dir = readdir(d)) != NULL) {
     if (strstr(dir->d_name, "card") == NULL) {
       continue;
@@ -62,68 +48,75 @@ struct SystemGraphicsCards SystemGraphicsCards_discover() {
 
     if (i == capacity) { // Expand buffer if no space left
       capacity++;
-      char **tmp_cards = realloc(sgc.cards, capacity * sizeof(char *));
+      char **tmp_cards = realloc(out->cards, capacity * sizeof(char *));
       if (tmp_cards == NULL) {
-        SystemGraphicsCards_free(&sgc);
-        sgc.count = 0;
-        return sgc;
+        OfyaDRMGraphicsCard_free(out);
+        return 1;
       }
-      sgc.cards = tmp_cards;
+      out->cards = tmp_cards;
     }
 
-    sgc.cards[i] = (char *) malloc(sizeof(char) * strlen(dir->d_name) + 1);
-    mempcpy(sgc.cards[i], dir->d_name, sizeof(char) * strlen(dir->d_name));
+    out->cards[i] = (char *) malloc(sizeof(char) * strlen(dir->d_name) + 1);
+    mempcpy(out->cards[i], dir->d_name, sizeof(char) * strlen(dir->d_name));
     i++;
-    sgc.count = i;
+    out->count = i;
   }
   closedir(d);
-  return sgc;
+  return 0;
 }
 
-void DiscoveryDisplays_free(struct DiscoveryDisplays *displays) {
-  for (size_t r = 0; r < displays->count; ++r){
-    struct DiscoveryDisplay* d = &displays->results[r];
-    free(d->displayModes);
-  }
-  free(displays->results);
-}
-
-void DiscoveryDisplays_log(struct DiscoveryDisplays *displays) {
-  for (size_t i = 0; i < displays->count; ++i) {
-    printf("Display %ld\n", i);
-    printf("\tConn:%d Enc:%d Crtc:%d\n", displays->results[i].connector_id, displays->results[i].encoder_id, displays->results[i].crtc_id);
-    printf("\tModes\n");
-    for (size_t m = 0; m < displays->results[i].displayModesCount; ++m) {
-      drmModeModeInfo dm = displays->results[i].displayModes[m];
-      printf("\t\t%ld: %dx%d @ %dHz\n", m, dm.hdisplay, dm.vdisplay, dm.vrefresh);
+uint32_t get_prop_id(int fd, uint32_t obj_id, uint32_t obj_type, const char *name) {
+  drmModeObjectProperties *props = drmModeObjectGetProperties(fd, obj_id, obj_type);
+  for (uint32_t i = 0; i < props->count_props; ++i) {
+    drmModePropertyRes *prop = drmModeGetProperty(fd, props->props[i]);
+    if (strcmp(prop->name, name) == 0) {
+      uint32_t prop_id = prop->prop_id;
+      drmModeFreeProperty(prop);
+      drmModeFreeObjectProperties(props);
+      return prop_id;
     }
+    drmModeFreeProperty(prop);
   }
+  drmModeFreeObjectProperties(props);
+  fprintf(stderr, "Failed to find property obj_id=%d obj_type=%d name=%s\n", obj_id, obj_type, name);
+  return 0;
 }
 
-struct DiscoveryDisplays DiscoveryDisplays_probeDRM() {
-  struct DiscoveryDisplays displays = { NULL, 0 };
 
-  struct SystemGraphicsCards sgc = SystemGraphicsCards_discover();
-  if (sgc.count == 0) {
-    fprintf(stderr, "No cards where found");
-    displays.count = 0;
-    return displays;
+int OfyaDisplays_scan() {
+  OfyaDRMGraphicsCards gcs;
+  if (OfyaDRMGraphicsCard_discover(&gcs)) {
+    fprintf(stderr, "Failed to located graphics cards\n");
+    return 1;
   }
 
-  int prs_size = 0;
-  int prs_capacity = 1;
-  displays.results = malloc(prs_capacity * sizeof(struct DiscoveryDisplay));
+  size_t displaysCapacity = 1;
+  DISPLAYS.displays = malloc(displaysCapacity * sizeof(OfyaDisplay));
+  DISPLAYS.count = 0;
   char card_path[64];
-  for (size_t i = 0; i < sgc.count; ++i) {
+  for (size_t gc_idx = 0; gc_idx < gcs.count; ++gc_idx) {
     card_path[0] = '\0';
     strcat(card_path, "/dev/dri/");
-    strcat(card_path, sgc.cards[i]);
+    strcat(card_path, gcs.cards[gc_idx]);
+    printf("Processing card '%s'\n", card_path);
 
     uint32_t fd = open(card_path, O_RDWR | O_CLOEXEC);
     if (fd <= 0) {
       fprintf(stderr, "open %s: %s", card_path, strerror(errno));
       continue;
     }
+
+    if (drmSetClientCap(fd, DRM_CLIENT_CAP_ATOMIC, 1) != 0) {
+      fprintf(stderr, "Atomic modesetting not supported for card '%s'\n", card_path);
+      close(fd);
+      continue;
+    }
+    if (drmSetClientCap(fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1) != 0) {
+      fprintf(stderr, "Universal planes not supported for card '%s'\n", card_path);
+      close(fd);
+      continue;
+    }
+
     drmModeRes* res = drmModeGetResources(fd);
     if (!res) {
       fprintf(stderr, "drmModeGetResources %s: %s\n", card_path, strerror(errno));
@@ -131,25 +124,25 @@ struct DiscoveryDisplays DiscoveryDisplays_probeDRM() {
       continue;
     }
 
-    for (int i = 0; i < res->count_connectors; ++i) {
-      drmModeConnector* conn = drmModeGetConnector(fd, res->connectors[i]);
+    for (int conn_idx = 0; conn_idx < res->count_connectors; ++conn_idx) {
+      drmModeConnector* conn = drmModeGetConnector(fd, res->connectors[conn_idx]);
       if (!conn) {
         fprintf(stderr, "drmModeGetConnnector: %s\n", card_path);
         drmModeFreeConnector(conn);
         continue;
       }
 
-      if (conn->connection != DRM_MODE_CONNECTED && conn->count_modes <= 0) { // Physical port has no connection to a display
+      if (conn->connection != DRM_MODE_CONNECTED && conn->count_modes <= 0) { // Physical port has no connection to display
         drmModeFreeConnector(conn);
         continue;
       }
 
       drmModeEncoder *enc = NULL;
-      if (conn -> encoder_id) {
+      if (conn->encoder_id) {
         enc = drmModeGetEncoder(fd, conn->encoder_id);
       } else {
-        for (int j = 0; j < conn->count_encoders; ++j) {
-          enc = drmModeGetEncoder(fd, conn->encoders[j]);
+        for (int encIdx = 0; encIdx < conn->count_encoders; ++encIdx) {
+          enc = drmModeGetEncoder(fd, conn->encoders[encIdx]);
           if (enc) break;
         }
       }
@@ -159,14 +152,12 @@ struct DiscoveryDisplays DiscoveryDisplays_probeDRM() {
         continue;
       }
 
-      printf("Using encoder %u\n", enc->encoder_id);
-
       uint32_t crtc_id = 0;
       uint32_t crtc_index = 0;
-      for (int j = 0; j < res->count_crtcs; ++j) {
-        if (enc->possible_crtcs & (1 << j)) {
-          crtc_id = res->crtcs[j];
-          crtc_index = j;
+      for (int crtc_idx = 0; crtc_idx < res->count_crtcs; ++crtc_idx) {
+        if (enc->possible_crtcs & (1 << crtc_idx)) {
+          crtc_id = res->crtcs[crtc_idx];
+          crtc_index = crtc_idx;
           break;
         }
       }
@@ -176,189 +167,199 @@ struct DiscoveryDisplays DiscoveryDisplays_probeDRM() {
         goto conn_enc_cleanup;
       }
 
-      if (prs_size == prs_capacity) { // Expand buffer if no space left
-        prs_capacity++;
-        struct DiscoveryDisplay * tmp_results = realloc(displays.results, prs_capacity * sizeof(struct DiscoveryDisplay));
-        if (tmp_results == NULL) {
+      if (DISPLAYS.count == displaysCapacity) { // Expand buffer if no space left
+        displaysCapacity++;
+        OfyaDisplay* tmp_displays = realloc(DISPLAYS.displays, displaysCapacity * sizeof(OfyaDisplay));
+        if (tmp_displays == NULL) {
           fprintf(stderr, "Failed to expand storage for ProbeResults");
           goto conn_enc_cleanup;
         }
-        displays.results = tmp_results;
+        DISPLAYS.displays = tmp_displays;
       }
 
-      struct DiscoveryDisplay display = {
-        conn->connector_id,
-        enc->encoder_id,
-        crtc_id,
-        crtc_index,
-        NULL,
-        conn->count_modes,
-        ""
-      };
+      OfyaDisplay display = { 0 };
+      display.display_modes = malloc(conn->count_modes * sizeof(drmModeModeInfo));
+      memcpy(display.display_modes, conn->modes, conn->count_modes * sizeof(drmModeModeInfo));
 
-      display.displayModes = malloc(conn->count_modes * sizeof(drmModeModeInfo));
-      memcpy(display.displayModes, conn->modes, conn->count_modes * sizeof(drmModeModeInfo));
-      strncpy(display.cardPath, card_path, strlen(card_path));
-      displays.results[prs_size] = display;
-      prs_size++;
-      displays.count = prs_size;
+      display.count_display_modes = conn->count_modes;
+      display.fd_card = fd;
+      display.connector_id = conn->connector_id;
+      display.encoder_id = enc->encoder_id;
+      display.crtc_id = crtc_id;
+      display.crtc_index = crtc_index;
+
+      // TODO set plane_primary, plane_cursor, plane_overlay, mode_blob_id
+      int plane_primary = -1;
+      int plane_cursor = -1;
+      int plane_overlay = -1;
+      drmModePlaneRes *planes = drmModeGetPlaneResources(fd);
+      for (size_t i = 0; i < planes->count_planes; ++i) {
+        uint32_t plane_id = planes->planes[i];
+        drmModePlane *plane = drmModeGetPlane(fd, plane_id);
+        drmModeObjectProperties *props = drmModeObjectGetProperties(fd, planes->planes[i], DRM_MODE_OBJECT_PLANE);
+        if (!props) {
+          drmModeFreePlane(plane);
+          continue;
+        }
+
+        uint64_t type_val = 99999999;
+        for (size_t i = 0; i < props->count_props; ++i) {
+          drmModePropertyRes* prop = drmModeGetProperty(fd, props->props[i]);
+          if (strcmp(prop->name, "type") == 0) {
+            type_val = props->prop_values[i];
+          }
+          drmModeFreeProperty(prop);
+        }
+
+        if (plane->possible_crtcs & (1 << crtc_index)) {
+          // printf("DRM_FORMAT_XRGB8888: %c%c%c%c (0x%x)\n",
+          //        DRM_FORMAT_XRGB8888& 0xFF,
+          //        (DRM_FORMAT_XRGB8888>> 8) & 0xFF,
+          //        (DRM_FORMAT_XRGB8888>> 16) & 0xFF,
+          //        (DRM_FORMAT_XRGB8888>> 24) & 0xFF,
+          //        DRM_FORMAT_XRGB8888
+          //        );
+          // for (size_t i = 0; i < plane->count_formats; ++i) {
+          //   uint32_t format = plane->formats[i];
+          //   printf("  format: %c%c%c%c (0x%x)\n",
+          //          format & 0xFF,
+          //          (format >> 8) & 0xFF,
+          //          (format >> 16) & 0xFF,
+          //          (format >> 24) & 0xFF,
+          //          format
+          //          );
+          // }
+
+          switch (type_val) {
+            case DRM_PLANE_TYPE_OVERLAY:
+              plane_overlay = plane_id;
+              break;
+            case DRM_PLANE_TYPE_PRIMARY:
+              plane_primary = plane_id;
+              break;
+            case DRM_PLANE_TYPE_CURSOR:
+              plane_cursor = plane_id;
+              break;
+            case 3:
+              fprintf(stderr, "Unknown plane type %ld\n", type_val);
+              break;
+          }
+        }
+
+        drmModeFreePlane(plane);
+      }
+
+      if (plane_primary == -1 || plane_cursor == -1 || plane_overlay == -1) {
+        fprintf(
+          stderr,
+          "Failed to find a plane which is compatible with the crtc with ID %d, PRIMARY(%s) CURSOR(%s) OVERLAY(%s)",
+          display.crtc_id,
+          plane_primary == -1 ? "NOT FOUND" : "FOUND",
+          plane_cursor == -1 ? "NOT FOUND" : "FOUND",
+          plane_overlay == -1 ? "NOT FOUND" : "FOUND"
+        );
+        goto conn_enc_cleanup;
+      }
+
+      display.plane_primary = plane_primary;
+      display.plane_cursor = plane_cursor;
+      display.plane_overlay = plane_overlay;
+
+      display.plane_primary_properties.connector_crtc_id = get_prop_id(fd, conn->connector_id, DRM_MODE_OBJECT_CONNECTOR, "CRTC_ID");
+      display.plane_primary_properties.crtc_activate = get_prop_id(fd, crtc_id, DRM_MODE_OBJECT_CRTC, "ACTIVE");
+      display.plane_primary_properties.crtc_mode_id = get_prop_id(fd, crtc_id, DRM_MODE_OBJECT_CRTC, "MODE_ID");
+      display.plane_primary_properties.plane_fb_id = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "FB_ID");
+      display.plane_primary_properties.plane_crtc_id = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_ID");
+      display.plane_primary_properties.plane_crtc_x = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_X");
+      display.plane_primary_properties.plane_crtc_y = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_Y");
+      display.plane_primary_properties.plane_crtc_w = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_W");
+      display.plane_primary_properties.plane_crtc_h = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_H");
+      display.plane_primary_properties.plane_src_x = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_X");
+      display.plane_primary_properties.plane_src_y = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_Y");
+      display.plane_primary_properties.plane_src_w = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_W");
+      display.plane_primary_properties.plane_src_h = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_H");
+
+      DISPLAYS.displays[DISPLAYS.count] = display;
+      DISPLAYS.count = DISPLAYS.count + 1;
 
     conn_enc_cleanup:
       drmModeFreeEncoder(enc);
       drmModeFreeConnector(conn);
-
     }
 
     drmModeFreeResources(res);
-    close(fd);
   }
 
-  SystemGraphicsCards_free(&sgc);
+  OfyaDRMGraphicsCard_free(&gcs);
+  
+  if (DISPLAYS.count == 0) {
+    return 1;
+  }
 
-  return displays;
+  return 0;
 }
 
-struct Display Display_pick() {
-  struct DiscoveryDisplays discoveryDisplays = DiscoveryDisplays_probeDRM();
-  if (discoveryDisplays.count == 0) {
-    exit(1);
+void OfyaDisplays_close() {
+  for (size_t display_idx = 0; display_idx < DISPLAYS.count; ++display_idx) {
+    close(DISPLAYS.displays[display_idx].fd_card);
   }
-  DiscoveryDisplays_log(&discoveryDisplays);
+}
 
-  size_t n_card, n_mode;
+int OfyaRenderDisplay_pick() {
+  size_t n_display;
+  size_t n_mode;
 
-  printf("Pick the card you want to use, the number must be from 0 to %ld: ", discoveryDisplays.count - 1);
-  fflush(stdin);
-  scanf("%ld", &n_card);
-  if (n_card >= discoveryDisplays.count) {
-    fprintf(stderr, "The card you chose '%ld' is not valid\n", n_card);
-    DiscoveryDisplays_free(&discoveryDisplays);
-    exit(1);
-  }
-
-  printf("Pick the mode you want to use, the number must be from 0 to %d: ", discoveryDisplays.results[n_card].displayModesCount - 1);
-  fflush(stdin);
-  scanf("%ld", &n_mode);
-  if (n_mode >= discoveryDisplays.results[n_card].displayModesCount) {
-    fprintf(stderr, "The mode you chose '%ld' is not valid\n", n_mode);
-    DiscoveryDisplays_free(&discoveryDisplays);
-    exit(1);
-  }
-
-  struct DiscoveryDisplay discoveryDisplay = discoveryDisplays.results[n_card];
-  drmModeModeInfo displayMode = discoveryDisplay.displayModes[n_mode];
-  char *card_path = discoveryDisplay.cardPath;
-  uint32_t fd_card = open(card_path, O_RDWR | O_CLOEXEC);
-  if (fd_card <= 0) {
-    fprintf(stderr, "open %s: %s", card_path, strerror(errno));
-    DiscoveryDisplays_free(&discoveryDisplays);
-    exit(1);
-  }
-
-  struct Display display = { 0 };
-  display.displayMode = displayMode;
-  display.fd_card = fd_card;
-  display.connector_id = discoveryDisplay.connector_id;
-  display.encoder_id = discoveryDisplay.encoder_id;
-  display.crtc_id = discoveryDisplay.crtc_id;
-  display.crtc_index = discoveryDisplay.crtc_index;
-
-  DiscoveryDisplays_free(&discoveryDisplays);
-
-  if (drmSetClientCap(fd_card, DRM_CLIENT_CAP_ATOMIC, 1) != 0) {
-    fprintf(stderr, "Atomic modesetting not supported\n");
-    Display_close(&display);
-    exit(1);
-  }
-  if (drmSetClientCap(fd_card, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1) != 0) {
-    fprintf(stderr, "Universal planes not supported\n");
-    Display_close(&display);
-    exit(1);
-  }
-
-  int plane_primary = -1;
-  int plane_cursor = -1;
-  int plane_overlay = -1;
-  drmModePlaneRes *planes = drmModeGetPlaneResources(fd_card);
-  for (size_t i = 0; i < planes->count_planes; ++i) {
-    uint32_t plane_id = planes->planes[i];
-    drmModePlane *planePtr = drmModeGetPlane(fd_card, plane_id);
-    drmModeObjectProperties *props = drmModeObjectGetProperties(fd_card, planes->planes[i], DRM_MODE_OBJECT_PLANE);
-    if (!props) continue;
-
-    uint64_t type_val = 9999;
-    for (size_t i = 0; i < props->count_props; ++i) {
-      drmModePropertyRes* prop = drmModeGetProperty(fd_card, props->props[i]);
-      if (strcmp(prop->name, "type") == 0) {
-        type_val = props->prop_values[i];
-      }
-      drmModeFreeProperty(prop);
-    }
-
-    if (planePtr->possible_crtcs & (1 << display.crtc_index)) {
-      printf("DRM_FORMAT_XRGB8888: %c%c%c%c (0x%x)\n",
-             DRM_FORMAT_XRGB8888& 0xFF,
-             (DRM_FORMAT_XRGB8888>> 8) & 0xFF,
-             (DRM_FORMAT_XRGB8888>> 16) & 0xFF,
-             (DRM_FORMAT_XRGB8888>> 24) & 0xFF,
-             DRM_FORMAT_XRGB8888
-             );
-      for (size_t i = 0; i < planePtr->count_formats; ++i) {
-        uint32_t format = planePtr->formats[i];
-        printf("  format: %c%c%c%c (0x%x)\n",
-               format & 0xFF,
-               (format >> 8) & 0xFF,
-               (format >> 16) & 0xFF,
-               (format >> 24) & 0xFF,
-               format
-               );
-      }
-
-      switch (type_val) {
-        case DRM_PLANE_TYPE_OVERLAY:
-          plane_overlay = plane_id;
-          break;
-        case DRM_PLANE_TYPE_PRIMARY:
-          plane_primary = plane_id;
-          break;
-        case DRM_PLANE_TYPE_CURSOR:
-          plane_cursor = plane_id;
-          break;
-        case 3:
-          fprintf(stderr, "Unknown plane type %ld\n", type_val);
-          break;
-      }
-    }
-
-    drmModeFreePlane(planePtr);
-  }
-
-  if (plane_primary == -1 || plane_cursor == -1 || plane_overlay == -1) {
-    fprintf(
-      stderr,
-      "Failed to find a plane which is compatible with the crtc with ID %d, PRIMARY(%s) CURSOR(%s) OVERLAY(%s)",
+  printf("Pick a display from 0-%ld\n", DISPLAYS.count - 1);
+  for (size_t display_idx = 0; display_idx < DISPLAYS.count; ++display_idx) {
+    OfyaDisplay display = DISPLAYS.displays[display_idx];
+    printf(
+      "%zd: Conn %d | Enc %d | Crtc %d | Plane Primary %d | Plane Cursor %d | Plane Overlay %d\n",
+      display_idx,
+      display.connector_id,
+      display.encoder_id,
       display.crtc_id,
-      plane_primary == -1 ? "NOT FOUND" : "FOUND",
-      plane_cursor == -1 ? "NOT FOUND" : "FOUND",
-      plane_overlay == -1 ? "NOT FOUND" : "FOUND"
+      display.plane_primary,
+      display.plane_cursor,
+      display.plane_overlay
     );
-    Display_close(&display);
-    exit(1);
+  }
+  fflush(stdin);
+  scanf("%zd", &n_display);
+  if (n_display < 0 || n_display > DISPLAYS.count) {
+    fprintf(stderr, "The chose display ID %zd doesn't exist\n", n_display);
+    return 1;
+  }
+  OfyaDisplay* display = &DISPLAYS.displays[n_display];
+
+  printf("Pick a mode from 0-%ld\n", display->count_display_modes);
+  for (size_t mode_idx = 0; mode_idx < display->count_display_modes; ++mode_idx) {
+    drmModeModeInfo mode = display->display_modes[mode_idx];
+    printf("\t%zd: %dx%d %dHz\n", mode_idx, mode.hdisplay, mode.vdisplay, mode.vrefresh);
+  }
+  fflush(stdin);
+  scanf("%zd", &n_mode);
+  if (n_mode < 0 || n_mode > display->count_display_modes) {
+    fprintf(stderr, "The chose display ID %zd doesn't exist\n", n_mode);
+    return 1;
   }
 
-  display.plane_primary = plane_primary;
-  display.plane_cursor = plane_cursor;
-  display.plane_overlay = plane_overlay;
-
-  if (drmModeCreatePropertyBlob(display.fd_card, &display.displayMode, sizeof(display.displayMode), &display.mode_blob_id) != 0) {
+  drmModeModeInfo mode = display->display_modes[n_mode];
+  uint32_t property_blob_id;
+  if (drmModeCreatePropertyBlob(
+    display->fd_card,
+    &mode,
+    sizeof(mode),
+    &property_blob_id
+  ) != 0 ) {
     perror("drmModeCreatePropertyBlob");
-    Display_close(&display);
-    exit(1);
+    return 1;
   }
 
-  return display;
-}
+  printf("Selected display stats: %dx%d %dHz", mode.hdisplay, mode.vdisplay, mode.vrefresh);
 
-void Display_close(struct Display *display) {
-  close(display->fd_card);
+  RENDER_DISPLAY.display = display;
+  RENDER_DISPLAY.property_blob_id = property_blob_id;
+  RENDER_DISPLAY.selected_mode_idx = n_mode;
+
+  return 0;
 }
