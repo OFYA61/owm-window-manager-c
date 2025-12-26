@@ -1,6 +1,7 @@
 #include <drm.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <linux/input-event-codes.h>
 #include <linux/kd.h>
 #include <linux/vt.h>
 #include <stdint.h>
@@ -21,6 +22,7 @@
 #include <stdio.h>
 
 #include "display.h"
+#include "events.h"
 #include "input.h"
 #include "render.h"
 
@@ -115,33 +117,20 @@ int commitAtomicRenderRequest(uint32_t fb_id, OfyaFlipEvent *flipEvent) {
   return commitResult;
 }
 
-void cleanup() {
+bool running = true;
+
+void key_pressed_callback(uint16_t key_code, bool pressed) {
+  if (pressed && key_code == KEY_ESC) {
+    running = false;
+  }
 }
 
 int main() {
-  int kbd_fd = open_keyboard_device();
-  // tty_fd = open("/dev/tty0", O_RDWR | O_CLOEXEC);
-  // if (tty_fd < 0) {
-  //   perror("open /dev/tty0");
-  //   close(kbd_fd);
-  //   return 1;
-  // }
-  // struct vt_mode vtmode = {
-  //   .mode = VT_PROCESS,
-  //   .relsig = SIGUSR1,
-  //   .acqsig = SIGUSR2
-  // };
-  // ioctl(tty_fd, VT_SETMODE, &vtmode);
-  // signal(SIGUSR1, vt_release);
-  // signal(SIGUSR2, vt_acquire);
-  // atexit(cleanup);
-  // signal(SIGINT, exit);
-  // signal(SIGTERM, exit);
-
-  if (kbd_fd < 0) {
-    perror("Failed to find keybaod\n");
+  if (OfyaKeyboards_setup()) {
+    fprintf(stderr, "Failed to find a keyboard\n");
     return 1;
   }
+  OfyaKeyboards_set_key_press_callback(key_pressed_callback);
 
   if (OfyaDisplays_scan()) {
     perror("OfyaDisplay_scan");
@@ -153,6 +142,8 @@ int main() {
     return 1;
   }
 
+  OfyaEventPollFds_setup();
+
   if (OfyaRenderContext_init()) {
     OfyaDisplays_close();
     return 1;
@@ -163,17 +154,9 @@ int main() {
 
   uint32_t frame_count = 0;
 
-  drmEventContext ev = {
-    .version = DRM_EVENT_CONTEXT_VERSION,
-    .page_flip_handler = page_flip_handler
-  };
+  OfyaEventPollFds_setup();
 
-  struct pollfd pfds[2] = {
-    { .fd = display->fd_card, .events = POLLIN },
-    { .fd = kbd_fd, .events = POLLIN}
-  };
-
-  while (1) {
+  while (running) {
     int renderFrameBufferIdx = OfyaRenderContext_find_free_buffer();
     if (renderFrameBufferIdx < 0) {
       // This should not happen, but don't crash yet
@@ -203,35 +186,13 @@ int main() {
       RENDER_CONTEXT.queuedBuffer = RENDER_CONTEXT.renderFrameBufferIdx;
     }
 
-    // Poll for events
-    int ret = poll(pfds, 2, -1); // -1 waits forever
-    if (ret > 0) {
-      if (pfds[0].revents & POLLIN) {
-        drmHandleEvent(display->fd_card, &ev);
-      }
-
-      if (pfds[1].revents & POLLIN) {
-        if (handle_keybaord(kbd_fd)) {
-          printf("Got some event from the keyboard handler\n");
-          break;
-        }
-      }
-    }
+    OfyaEventPollFds_poll();
     usleep(1000);
 
     frame_count++;
   }
 
-  // ioctl(tty_fd, KDSETMODE, KD_TEXT);
-  //
-  // struct vt_mode vtmode2 = {
-  //   .mode = VT_AUTO
-  // };
-  // ioctl(tty_fd, VT_SETMODE, &vtmode2);
-  // close(tty_fd);
-  release_keyboard(kbd_fd);
-  close(kbd_fd);
-
+  OfyaKeyboards_close();
   OfyaRenderContext_close();
   OfyaDisplays_close();
 

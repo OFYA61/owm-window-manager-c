@@ -3,8 +3,10 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <linux/input-event-codes.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -14,59 +16,27 @@
 #define EV_BITSIZE(bits) ((bits + 7) / 8)
 #define test_bit(bit, array) ((array[(bit) / 8] >> ((bit) % 8)) & 1)
 
-int handle_keybaord(int kbd_fd) {
-  struct input_event ev;
+OfyaKeyboards KEYBOARDS = { NULL, 0 };
+void (*key_press_callback)(uint16_t key_code, bool pressed) = NULL;
 
-  while (read(kbd_fd, &ev, sizeof(ev)) == sizeof(ev)) {
-    if (ev.type == EV_KEY && ev.value == 1) {
-      printf("key %d %s\n",
-             ev.code,
-             ev.value ? "pressed" : "released");
-      if (ev.code == KEY_ESC) {
-        printf("ESC Key pressed\n");
-        return 1;
-      }
-    }
-  }
-  return 0;
-}
-
-int is_keyboard(int fd) {
-  unsigned long evbit[(EV_MAX + 7) / 8] = { 0 }; // Space to fit in EV_MAX bits
-  unsigned long keybit[(KEY_MAX + 7) / 8] = { 0 }; // Space to fit in KEY_MAX bits
-
-  if (ioctl(fd, EVIOCGBIT(0, sizeof(evbit)), evbit) < 0) {
-    return 0;
-  }
-
-  if (!(evbit[EV_KEY / 8] & (1 << (EV_KEY % 8)))) { // EV_KEY / 8 = which byte the bit is located in
-                                                    // EV_KEY % 8 = which bit in that byte the EV_KEY bit is in
-    return 0;
-  }
-
-  if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keybit)), keybit) < 0) {
-    return 0;
-  }
-
-  return (keybit[KEY_ESC / 8] & (1 << (KEY_ESC % 8))) != 0;
-}
-
-int open_keyboard_device() {
-  char *folder_path = "/dev/input";
-  DIR *dir = opendir(folder_path);
+int OfyaKeyboards_setup() {
+  DIR* dir = opendir("/dev/input");
   if (!dir) {
-    fprintf(stderr, "Failed to open directory '%s'\n", folder_path);
+    fprintf(stderr, "Failed to open directory '/dev/input'\n");
     return -1;
   }
 
   struct dirent *ent;
-  char path[256];
-
+  char path[512];
+  int kbd_fds_capacity = 8;
+  int *kbd_fds = malloc(sizeof(int) * 8);
+  int kbd_fds_size = 0;
   while ((ent = readdir(dir)) != NULL) {
-    if (strncmp(ent->d_name, "event", 5) != 0)
+    if (strncmp(ent->d_name, "event", 5) != 0) {
       continue;
+    }
 
-    snprintf(path, sizeof(path), "/dev/input/event6", ent->d_name);
+    snprintf(path, sizeof(path), "/dev/input/%s", ent->d_name);
 
     int fd = open(path, O_RDONLY | O_NONBLOCK);
     if (fd < 0)
@@ -102,15 +72,49 @@ int open_keyboard_device() {
     //   // Not fatal, we can still use it
     // }
 
-    printf("Using keyboard device: %s\n", path);
-    closedir(dir);
-    return fd;
+    if(kbd_fds_size == kbd_fds_capacity) {
+      kbd_fds_capacity += 4;
+      int *tmp_kbd_fds = realloc(kbd_fds, sizeof(int) * kbd_fds_capacity);
+      if (tmp_kbd_fds == NULL) {
+        fprintf(stderr, "Failed to reallocate `kbd_fds`\n");
+        return 1;
+      }
+      kbd_fds = tmp_kbd_fds;
+    }
+    kbd_fds[kbd_fds_size] = fd;
+    kbd_fds_size++;
   }
 
+  KEYBOARDS.count = kbd_fds_size;
+  KEYBOARDS.kbd_fds = malloc(sizeof(int) * kbd_fds_size);
+  memcpy(KEYBOARDS.kbd_fds, kbd_fds, sizeof(int) * kbd_fds_size);
+  free(kbd_fds);
+
   closedir(dir);
-  return -1;
+  return 0;
 }
 
-void release_keyboard(int kbd_fd) {
-  ioctl(kbd_fd, EVIOCGRAB, 0);
+void OfyaKeyboards_close() {
+  for (size_t kbd_idx = 0; kbd_idx < KEYBOARDS.count; ++kbd_idx) {
+    int kbd_fd = KEYBOARDS.kbd_fds[kbd_idx];
+    ioctl(kbd_fd, EVIOCGRAB, 0); // Release control of keyboard, even if we didn't grab it just in case
+    close(kbd_fd);
+  }
+  free(KEYBOARDS.kbd_fds);
+}
+
+void OfyaKeyboards_set_key_press_callback(void (*callback)(uint16_t key_code, bool pressed)) {
+  key_press_callback = callback;
+}
+
+void OfyaKeyboard_handle_poll_event(int kbd_fd) {
+  struct input_event ev;
+
+  while (read(kbd_fd, &ev, sizeof(ev)) == sizeof(ev)) {
+    if (ev.type == EV_KEY && ev.value == 1) {
+      if (key_press_callback != NULL) {
+         key_press_callback(ev.code, ev.value ? true : false);
+      }
+    }
+  }
 }
