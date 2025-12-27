@@ -122,7 +122,7 @@ int owmRenderContext_pick_display() {
   size_t n_display;
   size_t n_mode;
 
-  owmDisplays *displays = owmDisplays_get();
+  const owmDisplays *displays = owmDisplays_get();
   printf("Pick a display from 0-%ld\n", displays->count - 1);
   for (size_t display_idx = 0; display_idx < displays->count; ++display_idx) {
     owmDisplay display = displays->displays[display_idx];
@@ -317,7 +317,7 @@ void owmRenderContext_page_flip_handler(int fd, unsigned int frame, unsigned int
   owmFlipEvent *ev = data;
   int newDisplayedBufferIdx = ev->bufferIndex;
 
-  printf("Displayed buffer %d, frame time %lu us\n", newDisplayedBufferIdx, OWM_RENDER_CONTEXT.frameTime);
+  // printf("Displayed buffer %d, frame time %lu us\n", newDisplayedBufferIdx, OWM_RENDER_CONTEXT.frameTime);
 
   uint64_t now = (uint64_t) sec * 1000000 + usec;
   if (OWM_RENDER_CONTEXT.lastTimestamp != 0) {

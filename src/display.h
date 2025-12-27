@@ -54,4 +54,4 @@ int owmDisplays_scan();
 /// Goes over the displays in the the global `OWM_DISPLAYS` array and closes them
 void owmDisplays_close();
 
-owmDisplays* owmDisplays_get();
+const owmDisplays* owmDisplays_get();

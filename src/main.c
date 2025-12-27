@@ -2,7 +2,6 @@
 #include <stdio.h>
 
 #include "owm.h"
-#include "display.h"
 #include "events.h"
 #include "input.h"
 #include "render.h"
@@ -10,6 +9,9 @@
 bool running = true;
 
 void key_pressed_callback(uint16_t key_code, bool pressed) {
+  if (pressed) {
+    printf("Key pressed %d\n", key_code);
+  }
   if (pressed && key_code == KEY_ESC) {
     running = false;
   }

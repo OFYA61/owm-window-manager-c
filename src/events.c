@@ -7,11 +7,14 @@
 #include <sys/poll.h>
 #include <xf86drm.h>
 
-owmEventPollFds OWM_EVENT_POLL_FDS = {NULL, 0, 0, 0, 0};
+owmEventPollFds OWM_EVENT_POLL_FDS = { 0 };
 
 void owmEventPollFds_setup() {
-  size_t size = 1 +              // 1 for render display
-                OWM_KEYBOARDS.count; // Keyboard input devices
+  const owmKeyboards *keyboards = owmKeyboards_get();
+  const owmMice *mice = owmMice_get();
+  size_t size = 1 +                 // 1 for render display
+                keyboards->count +  // Keyboard input devices
+                mice->count;        // Mouse input devices
   OWM_EVENT_POLL_FDS.pollfds = malloc(sizeof(struct pollfd) * size);
   OWM_EVENT_POLL_FDS.count = size;
 
@@ -22,15 +25,27 @@ void owmEventPollFds_setup() {
   OWM_EVENT_POLL_FDS.display_idx = index;
   index++;
 
-  size_t kbds_to_process = OWM_KEYBOARDS.count;
+  // Register keyboards
+  size_t kbds_to_process = keyboards->count;
   OWM_EVENT_POLL_FDS.input_kbd_start_idx = index;
   while (kbds_to_process > 0) {
-    OWM_EVENT_POLL_FDS.pollfds[index].fd = OWM_KEYBOARDS.kbd_fds[kbds_to_process - 1];
+    OWM_EVENT_POLL_FDS.pollfds[index].fd = keyboards->fds[kbds_to_process - 1];
     OWM_EVENT_POLL_FDS.pollfds[index].events = POLLIN;
     index++;
     --kbds_to_process;
   }
   OWM_EVENT_POLL_FDS.input_kbd_end_idx = index - 1;
+
+  // Register mice
+  size_t mice_to_process = mice->count;
+  OWM_EVENT_POLL_FDS.input_mice_start_idx = index;
+  while(mice_to_process > 0) {
+    OWM_EVENT_POLL_FDS.pollfds[index].fd = mice->fds[mice_to_process - 1];
+    OWM_EVENT_POLL_FDS.pollfds[index].events = POLLIN;
+    index++;
+    --mice_to_process;
+  }
+  OWM_EVENT_POLL_FDS.input_mice_end_idx = index - 1;
 }
 
 void owmEventPollFds_poll() {
@@ -60,4 +75,14 @@ void owmEventPollFds_poll() {
       owmKeyboard_handle_poll_event(pfds[kbd_poll_fd_idx].fd);
     }
   }
+
+  for (size_t mice_poll_fd_idx = OWM_EVENT_POLL_FDS.input_mice_start_idx; mice_poll_fd_idx <= OWM_EVENT_POLL_FDS.input_mice_end_idx; mice_poll_fd_idx++) {
+    if (pfds[mice_poll_fd_idx].revents & POLLIN) {
+      owmMice_handle_poll_event(pfds[mice_poll_fd_idx].fd);
+    }
+  }
+}
+
+void owmEventPollFds_cleanup() {
+  free(OWM_EVENT_POLL_FDS.pollfds);
 }

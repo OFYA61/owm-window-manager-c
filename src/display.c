@@ -304,6 +304,6 @@ void owmDisplays_close() {
   }
 }
 
-inline owmDisplays* owmDisplays_get() {
+inline const owmDisplays* owmDisplays_get() {
   return &OWM_DISPLAYS;
 }

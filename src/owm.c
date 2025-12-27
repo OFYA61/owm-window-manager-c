@@ -8,7 +8,7 @@
 #include "render.h"
 
 int owm_init() {
-  if (owmKeyboards_setup()) {
+  if (owmInput_setup()) {
     fprintf(stderr, "Failed to find a keyboard\n");
     return 1;
   }
@@ -29,7 +29,8 @@ int owm_init() {
 }
 
 void owm_cleanup() {
-  owmKeyboards_close();
+  owmEventPollFds_cleanup();
+  owmInput_close();
   owmRenderContext_close();
   owmDisplays_close();
 }
