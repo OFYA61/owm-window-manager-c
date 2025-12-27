@@ -16,10 +16,10 @@
 #define EV_BITSIZE(bits) ((bits + 7) / 8)
 #define test_bit(bit, array) ((array[(bit) / 8] >> ((bit) % 8)) & 1)
 
-OfyaKeyboards KEYBOARDS = { NULL, 0 };
+owmKeyboards OWM_KEYBOARDS = { NULL, 0 };
 void (*key_press_callback)(uint16_t key_code, bool pressed) = NULL;
 
-int OfyaKeyboards_setup() {
+int owmKeyboards_setup() {
   DIR* dir = opendir("/dev/input");
   if (!dir) {
     fprintf(stderr, "Failed to open directory '/dev/input'\n");
@@ -85,29 +85,29 @@ int OfyaKeyboards_setup() {
     kbd_fds_size++;
   }
 
-  KEYBOARDS.count = kbd_fds_size;
-  KEYBOARDS.kbd_fds = malloc(sizeof(int) * kbd_fds_size);
-  memcpy(KEYBOARDS.kbd_fds, kbd_fds, sizeof(int) * kbd_fds_size);
+  OWM_KEYBOARDS.count = kbd_fds_size;
+  OWM_KEYBOARDS.kbd_fds = malloc(sizeof(int) * kbd_fds_size);
+  memcpy(OWM_KEYBOARDS.kbd_fds, kbd_fds, sizeof(int) * kbd_fds_size);
   free(kbd_fds);
 
   closedir(dir);
   return 0;
 }
 
-void OfyaKeyboards_close() {
-  for (size_t kbd_idx = 0; kbd_idx < KEYBOARDS.count; ++kbd_idx) {
-    int kbd_fd = KEYBOARDS.kbd_fds[kbd_idx];
+void owmKeyboards_close() {
+  for (size_t kbd_idx = 0; kbd_idx < OWM_KEYBOARDS.count; ++kbd_idx) {
+    int kbd_fd = OWM_KEYBOARDS.kbd_fds[kbd_idx];
     ioctl(kbd_fd, EVIOCGRAB, 0); // Release control of keyboard, even if we didn't grab it just in case
     close(kbd_fd);
   }
-  free(KEYBOARDS.kbd_fds);
+  free(OWM_KEYBOARDS.kbd_fds);
 }
 
-void OfyaKeyboards_set_key_press_callback(void (*callback)(uint16_t key_code, bool pressed)) {
+void owmKeyboards_set_key_press_callback(void (*callback)(uint16_t key_code, bool pressed)) {
   key_press_callback = callback;
 }
 
-void OfyaKeyboard_handle_poll_event(int kbd_fd) {
+void owmKeyboard_handle_poll_event(int kbd_fd) {
   struct input_event ev;
 
   while (read(kbd_fd, &ev, sizeof(ev)) == sizeof(ev)) {

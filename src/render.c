@@ -7,11 +7,11 @@
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
-OfyaRenderContext RENDER_CONTEXT = { 0 };
+owmRenderContext OWM_RENDER_CONTEXT = { 0 };
 
-int OfyaDumbFrameBuffer_create(OfyaDumbFrameBuffer *out) {
-  OfyaDisplay* display = RENDER_DISPLAY.display;
-  drmModeModeInfo mode = RENDER_DISPLAY.display->display_modes[RENDER_DISPLAY.selected_mode_idx];
+int OfyaDumbFrameBuffer_create(owmDumbFrameBuffer *out) {
+  owmDisplay* display = OWM_RENDER_DISPLAY.display;
+  drmModeModeInfo mode = OWM_RENDER_DISPLAY.display->display_modes[OWM_RENDER_DISPLAY.selected_mode_idx];
   struct drm_mode_create_dumb create = { 0 };
   create.width = mode.hdisplay;
   create.height = mode.vdisplay;
@@ -72,24 +72,24 @@ int OfyaDumbFrameBuffer_create(OfyaDumbFrameBuffer *out) {
   return 0;
 }
 
-void OfyaDumbFrameBuffer_destroy(OfyaDumbFrameBuffer* fb) {
-  OfyaDisplay* display = RENDER_DISPLAY.display;
+void OfyaDumbFrameBuffer_destroy(owmDumbFrameBuffer* fb) {
+  owmDisplay* display = OWM_RENDER_DISPLAY.display;
   struct drm_mode_destroy_dumb destroy = { 0 };
   destroy.handle = fb->handle;
   drmIoctl(display->fd_card, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy);
 }
 
-void OfyaFrameBuffer_destroy(OfyaFrameBuffer *fb) {
+void OfyaFrameBuffer_destroy(owmFrameBuffer *fb) {
   OfyaDumbFrameBuffer_destroy(&fb->buffer);
 }
 
-void OfyaFrameBuffer_destroyList(OfyaFrameBuffer *fb, size_t count) {
+void OfyaFrameBuffer_destroyList(owmFrameBuffer *fb, size_t count) {
   for (size_t i = 0; i < count; ++i) {
     OfyaFrameBuffer_destroy(&fb[i]);
   }
 }
 
-int OfyaFrameBuffer_create(OfyaFrameBuffer *out) {
+int OfyaFrameBuffer_create(owmFrameBuffer *out) {
   if (OfyaDumbFrameBuffer_create(&out->buffer)) {
     return 1;
   }
@@ -97,7 +97,7 @@ int OfyaFrameBuffer_create(OfyaFrameBuffer *out) {
   return 0;
 }
 
-int OfyaFrameBuffer_createList(OfyaFrameBuffer *out, size_t count) {
+int OfyaFrameBuffer_createList(owmFrameBuffer *out, size_t count) {
   for (size_t i = 0; i < count; ++i) {
     if (OfyaFrameBuffer_create(&out[i])) {
       for (size_t j = 0; j < i; ++j) {
@@ -109,51 +109,51 @@ int OfyaFrameBuffer_createList(OfyaFrameBuffer *out, size_t count) {
   return 0;
 }
 
-int OfyaRenderContext_init() {
+int owmRenderContext_init() {
   printf("Creating render context for the chosen display\n");
 
-  RENDER_CONTEXT.lastTimestamp = 0;
-  RENDER_CONTEXT.displayedBufferIdx = 0;
-  RENDER_CONTEXT.queuedBuffer = -1;
+  OWM_RENDER_CONTEXT.lastTimestamp = 0;
+  OWM_RENDER_CONTEXT.displayedBufferIdx = 0;
+  OWM_RENDER_CONTEXT.queuedBuffer = -1;
 
-  if (OfyaFrameBuffer_createList(RENDER_CONTEXT.frameBuffers, FB_COUNT)) {
+  if (OfyaFrameBuffer_createList(OWM_RENDER_CONTEXT.frameBuffers, FB_COUNT)) {
     fprintf(stderr, "Failed to create render context for the chosen display: Failed to create frame buffers.\n");
     return 1;
   }
 
-  RENDER_CONTEXT.frameBuffers[RENDER_CONTEXT.displayedBufferIdx].state = FB_DISPLAYED;
+  OWM_RENDER_CONTEXT.frameBuffers[OWM_RENDER_CONTEXT.displayedBufferIdx].state = FB_DISPLAYED;
 
   return 0;
 }
 
-void OfyaRenderContext_close() {
-  OfyaFrameBuffer_destroyList(RENDER_CONTEXT.frameBuffers, FB_COUNT);
+void owmRenderContext_close() {
+  OfyaFrameBuffer_destroyList(OWM_RENDER_CONTEXT.frameBuffers, FB_COUNT);
 }
 
-int OfyaRenderContext_find_free_buffer() {
+int owmRenderContext_find_free_buffer() {
   for (int buf_idx = 0; buf_idx < FB_COUNT; ++buf_idx) {
-    if (RENDER_CONTEXT.frameBuffers[buf_idx].state == FB_FREE) {
+    if (OWM_RENDER_CONTEXT.frameBuffers[buf_idx].state == FB_FREE) {
       return buf_idx;
     }
   }
   return -1;
 }
 
-void page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec, void *data) {
-  OfyaFlipEvent *ev = data;
+void owm_page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec, void *data) {
+  owmFlipEvent *ev = data;
   int newDisplayedBufferIdx = ev->bufferIndex;
 
-  printf("Displayed buffer %d, frame time %lu us\n", newDisplayedBufferIdx, RENDER_CONTEXT.frameTime);
+  printf("Displayed buffer %d, frame time %lu us\n", newDisplayedBufferIdx, OWM_RENDER_CONTEXT.frameTime);
 
   uint64_t now = (uint64_t) sec * 1000000 + usec;
-  if (RENDER_CONTEXT.lastTimestamp != 0) {
-    RENDER_CONTEXT.frameTime = now - RENDER_CONTEXT.lastTimestamp;
+  if (OWM_RENDER_CONTEXT.lastTimestamp != 0) {
+    OWM_RENDER_CONTEXT.frameTime = now - OWM_RENDER_CONTEXT.lastTimestamp;
   }
 
-  RENDER_CONTEXT.frameBuffers[RENDER_CONTEXT.displayedBufferIdx].state = FB_FREE; // Old displayed buffer becomes DB_FREE
-  RENDER_CONTEXT.frameBuffers[newDisplayedBufferIdx].state = FB_DISPLAYED; // New disaplyed becomes FB_DISPLAYED
+  OWM_RENDER_CONTEXT.frameBuffers[OWM_RENDER_CONTEXT.displayedBufferIdx].state = FB_FREE; // Old displayed buffer becomes DB_FREE
+  OWM_RENDER_CONTEXT.frameBuffers[newDisplayedBufferIdx].state = FB_DISPLAYED; // New disaplyed becomes FB_DISPLAYED
 
-  RENDER_CONTEXT.displayedBufferIdx = newDisplayedBufferIdx;
-  RENDER_CONTEXT.queuedBuffer = -1;
-  RENDER_CONTEXT.lastTimestamp = now;
+  OWM_RENDER_CONTEXT.displayedBufferIdx = newDisplayedBufferIdx;
+  OWM_RENDER_CONTEXT.queuedBuffer = -1;
+  OWM_RENDER_CONTEXT.lastTimestamp = now;
 }

@@ -11,11 +11,11 @@ typedef struct {
   size_t display_idx;
   size_t input_kbd_start_idx;
   size_t input_kbd_end_idx;
-} OfyaEventPollFds;
+} owmEventPollFds;
 
-extern OfyaEventPollFds EVENT_POLL_FDS;
+extern owmEventPollFds OWM_EVENT_POLL_FDS;
 
-/// Setups up global `EVENT_POLL_FDS`.
-/// Requires the input devices `KEYBOARDS` and the `RENDER_DISPLAY` to be set before calling
-void OfyaEventPollFds_setup();
-void OfyaEventPollFds_poll();
+/// Setups up global `OWM_EVENT_POLL_FDS`.
+/// Requires the input devices `OWM_KEYBOARDS` and the `OWM_RENDER_DISPLAY` to be set before calling
+void owmEventPollFds_setup();
+void owmEventPollFds_poll();

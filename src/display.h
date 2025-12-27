@@ -22,7 +22,7 @@ typedef struct {
   uint32_t plane_src_y;
   uint32_t plane_src_w;
   uint32_t plane_src_h;
-} PrimaryPlaneProperties;
+} owmPrimaryPlaneProperties;
 
 typedef struct {
   drmModeModeInfo* display_modes;
@@ -38,30 +38,30 @@ typedef struct {
   uint32_t crtc_index;
 
   uint32_t plane_primary;
-  PrimaryPlaneProperties plane_primary_properties;
+  owmPrimaryPlaneProperties plane_primary_properties;
 
   uint32_t plane_cursor;
   uint32_t plane_overlay;
-} OfyaDisplay;
+} owmDisplay;
 
 typedef struct {
-  OfyaDisplay* displays;
+  owmDisplay* displays;
   size_t count;
-} OfyaDisplays;
+} owmDisplays;
 
 typedef struct {
-  OfyaDisplay* display;
+  owmDisplay* display;
   uint32_t property_blob_id;
   size_t selected_mode_idx;
-} OfyaRenderDisplay;
+} owmRenderDisplay;
 
-extern OfyaDisplays DISPLAYS;
-extern OfyaRenderDisplay RENDER_DISPLAY;
+extern owmDisplays OWM_DISPLAYS;
+extern owmRenderDisplay OWM_RENDER_DISPLAY;
 
-/// Scan the displays and return them in the global `DISPLAYS` array
-int OfyaDisplays_scan();
-/// Goes over the displays in the the global `DISPLAYS` array and closes them
-void OfyaDisplays_close();
+/// Scan the displays and return them in the global `OWM_DISPLAYS` array
+int owmDisplays_scan();
+/// Goes over the displays in the the global `OWM_DISPLAYS` array and closes them
+void owmDisplays_close();
 
-/// Queries the user to select a display from the global `DISPLAYS` array and sets it up in the global `RENDER_DISPLAY` variable
-int OfyaRenderDisplay_pick();
+/// Queries the user to select a display from the global `OWM_DISPLAYS` array and sets it up in the global `OWM_RENDER_DISPLAY` variable
+int owmRenderDisplay_pick();

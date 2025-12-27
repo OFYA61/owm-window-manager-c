@@ -13,22 +13,22 @@
 #include <xf86drmMode.h>
 #include <drm_fourcc.h>
 
-OfyaDisplays DISPLAYS = { NULL, 0 };
-OfyaRenderDisplay RENDER_DISPLAY = { NULL, 0 };
+owmDisplays OWM_DISPLAYS = { NULL, 0 };
+owmRenderDisplay OWM_RENDER_DISPLAY = { NULL, 0, 0 };
 
 typedef struct {
   char **cards;
   size_t count;
-} OfyaDRMGraphicsCards;
+} owmDRMGraphicsCards;
 
-void OfyaDRMGraphicsCard_free(OfyaDRMGraphicsCards* gcs) {
+void owmDRMGraphicsCard_free(owmDRMGraphicsCards* gcs) {
   for (size_t i = 0; i < gcs->count; ++i) {
     free(gcs->cards[i]);
   }
   free(gcs->cards);
 }
 
-int OfyaDRMGraphicsCard_discover(OfyaDRMGraphicsCards* out) {
+int owmDRMGraphicsCard_discover(owmDRMGraphicsCards* out) {
   DIR *d;
   struct dirent *dir;
   d = opendir("/dev/dri");
@@ -50,7 +50,7 @@ int OfyaDRMGraphicsCard_discover(OfyaDRMGraphicsCards* out) {
       capacity++;
       char **tmp_cards = realloc(out->cards, capacity * sizeof(char *));
       if (tmp_cards == NULL) {
-        OfyaDRMGraphicsCard_free(out);
+        owmDRMGraphicsCard_free(out);
         return 1;
       }
       out->cards = tmp_cards;
@@ -83,16 +83,16 @@ uint32_t get_prop_id(int fd, uint32_t obj_id, uint32_t obj_type, const char *nam
 }
 
 
-int OfyaDisplays_scan() {
-  OfyaDRMGraphicsCards gcs;
-  if (OfyaDRMGraphicsCard_discover(&gcs)) {
+int owmDisplays_scan() {
+  owmDRMGraphicsCards gcs;
+  if (owmDRMGraphicsCard_discover(&gcs)) {
     fprintf(stderr, "Failed to located graphics cards\n");
     return 1;
   }
 
   size_t displaysCapacity = 1;
-  DISPLAYS.displays = malloc(displaysCapacity * sizeof(OfyaDisplay));
-  DISPLAYS.count = 0;
+  OWM_DISPLAYS.displays = malloc(displaysCapacity * sizeof(owmDisplay));
+  OWM_DISPLAYS.count = 0;
   char card_path[64];
   for (size_t gc_idx = 0; gc_idx < gcs.count; ++gc_idx) {
     card_path[0] = '\0';
@@ -167,17 +167,17 @@ int OfyaDisplays_scan() {
         goto conn_enc_cleanup;
       }
 
-      if (DISPLAYS.count == displaysCapacity) { // Expand buffer if no space left
+      if (OWM_DISPLAYS.count == displaysCapacity) { // Expand buffer if no space left
         displaysCapacity++;
-        OfyaDisplay* tmp_displays = realloc(DISPLAYS.displays, displaysCapacity * sizeof(OfyaDisplay));
+        owmDisplay* tmp_displays = realloc(OWM_DISPLAYS.displays, displaysCapacity * sizeof(owmDisplay));
         if (tmp_displays == NULL) {
           fprintf(stderr, "Failed to expand storage for ProbeResults");
           goto conn_enc_cleanup;
         }
-        DISPLAYS.displays = tmp_displays;
+        OWM_DISPLAYS.displays = tmp_displays;
       }
 
-      OfyaDisplay display = { 0 };
+      owmDisplay display = { 0 };
       display.display_modes = malloc(conn->count_modes * sizeof(drmModeModeInfo));
       memcpy(display.display_modes, conn->modes, conn->count_modes * sizeof(drmModeModeInfo));
 
@@ -279,8 +279,8 @@ int OfyaDisplays_scan() {
       display.plane_primary_properties.plane_src_w = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_W");
       display.plane_primary_properties.plane_src_h = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_H");
 
-      DISPLAYS.displays[DISPLAYS.count] = display;
-      DISPLAYS.count = DISPLAYS.count + 1;
+      OWM_DISPLAYS.displays[OWM_DISPLAYS.count] = display;
+      OWM_DISPLAYS.count = OWM_DISPLAYS.count + 1;
 
     conn_enc_cleanup:
       drmModeFreeEncoder(enc);
@@ -290,28 +290,28 @@ int OfyaDisplays_scan() {
     drmModeFreeResources(res);
   }
 
-  OfyaDRMGraphicsCard_free(&gcs);
+  owmDRMGraphicsCard_free(&gcs);
   
-  if (DISPLAYS.count == 0) {
+  if (OWM_DISPLAYS.count == 0) {
     return 1;
   }
 
   return 0;
 }
 
-void OfyaDisplays_close() {
-  for (size_t display_idx = 0; display_idx < DISPLAYS.count; ++display_idx) {
-    close(DISPLAYS.displays[display_idx].fd_card);
+void owmDisplays_close() {
+  for (size_t display_idx = 0; display_idx < OWM_DISPLAYS.count; ++display_idx) {
+    close(OWM_DISPLAYS.displays[display_idx].fd_card);
   }
 }
 
-int OfyaRenderDisplay_pick() {
+int owmRenderDisplay_pick() {
   size_t n_display;
   size_t n_mode;
 
-  printf("Pick a display from 0-%ld\n", DISPLAYS.count - 1);
-  for (size_t display_idx = 0; display_idx < DISPLAYS.count; ++display_idx) {
-    OfyaDisplay display = DISPLAYS.displays[display_idx];
+  printf("Pick a display from 0-%ld\n", OWM_DISPLAYS.count - 1);
+  for (size_t display_idx = 0; display_idx < OWM_DISPLAYS.count; ++display_idx) {
+    owmDisplay display = OWM_DISPLAYS.displays[display_idx];
     printf(
       "%zd: Conn %d | Enc %d | Crtc %d | Plane Primary %d | Plane Cursor %d | Plane Overlay %d\n",
       display_idx,
@@ -325,11 +325,11 @@ int OfyaRenderDisplay_pick() {
   }
   fflush(stdin);
   scanf("%zd", &n_display);
-  if (n_display < 0 || n_display > DISPLAYS.count) {
+  if (n_display < 0 || n_display > OWM_DISPLAYS.count) {
     fprintf(stderr, "The chose display ID %zd doesn't exist\n", n_display);
     return 1;
   }
-  OfyaDisplay* display = &DISPLAYS.displays[n_display];
+  owmDisplay* display = &OWM_DISPLAYS.displays[n_display];
 
   printf("Pick a mode from 0-%ld\n", display->count_display_modes);
   for (size_t mode_idx = 0; mode_idx < display->count_display_modes; ++mode_idx) {
@@ -357,9 +357,9 @@ int OfyaRenderDisplay_pick() {
 
   printf("Selected display stats: %dx%d %dHz\n", mode.hdisplay, mode.vdisplay, mode.vrefresh);
 
-  RENDER_DISPLAY.display = display;
-  RENDER_DISPLAY.property_blob_id = property_blob_id;
-  RENDER_DISPLAY.selected_mode_idx = n_mode;
+  OWM_RENDER_DISPLAY.display = display;
+  OWM_RENDER_DISPLAY.property_blob_id = property_blob_id;
+  OWM_RENDER_DISPLAY.selected_mode_idx = n_mode;
 
   return 0;
 }

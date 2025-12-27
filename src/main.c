@@ -27,22 +27,21 @@
 void PlaneProperties_init() {
   drmModeAtomicReq *atomicReq = drmModeAtomicAlloc();
 
-  PrimaryPlaneProperties* plane_props = &RENDER_DISPLAY.display->plane_primary_properties;
-  OfyaDisplay *render_display = RENDER_DISPLAY.display;
-  drmModeModeInfo* mode = &render_display->display_modes[RENDER_DISPLAY.selected_mode_idx];
+  owmPrimaryPlaneProperties* plane_props = &OWM_RENDER_DISPLAY.display->plane_primary_properties;
+  owmDisplay *render_display = OWM_RENDER_DISPLAY.display;
+  drmModeModeInfo* mode = &render_display->display_modes[OWM_RENDER_DISPLAY.selected_mode_idx];
 
   // TODO: Proper multi-output routing
   // NVIDIA + USB-C mirrors connectors onto a single CRTC.
   // This needs driver-specific handling.
   drmModeAtomicAddProperty(atomicReq, render_display->connector_id, plane_props->connector_crtc_id, render_display->crtc_id);
 
-
   // CRTC
   drmModeAtomicAddProperty(atomicReq, render_display->crtc_id, plane_props->crtc_activate, 1);
-  drmModeAtomicAddProperty(atomicReq, render_display->crtc_id, plane_props->crtc_mode_id, RENDER_DISPLAY.property_blob_id);
+  drmModeAtomicAddProperty(atomicReq, render_display->crtc_id, plane_props->crtc_mode_id, OWM_RENDER_DISPLAY.property_blob_id);
 
   // Plane
-  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_fb_id, RENDER_CONTEXT.frameBuffers[RENDER_CONTEXT.displayedBufferIdx].buffer.fb_id);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_fb_id, OWM_RENDER_CONTEXT.frameBuffers[OWM_RENDER_CONTEXT.displayedBufferIdx].buffer.fb_id);
   drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_crtc_id, render_display->crtc_id);
   drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_crtc_x, 0);
   drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_crtc_y, 0);
@@ -61,12 +60,12 @@ void PlaneProperties_init() {
   drmModeAtomicFree(atomicReq);
 }
 
-int commitAtomicRenderRequest(uint32_t fb_id, OfyaFlipEvent *flipEvent) {
+int commitAtomicRenderRequest(uint32_t fb_id, owmFlipEvent *flipEvent) {
   drmModeAtomicReq *atomicReq = drmModeAtomicAlloc();
 
-  PrimaryPlaneProperties* plane_props = &RENDER_DISPLAY.display->plane_primary_properties;
-  OfyaDisplay *display = RENDER_DISPLAY.display;
-  drmModeModeInfo* mode = &display->display_modes[RENDER_DISPLAY.selected_mode_idx];
+  owmPrimaryPlaneProperties* plane_props = &OWM_RENDER_DISPLAY.display->plane_primary_properties;
+  owmDisplay *display = OWM_RENDER_DISPLAY.display;
+  drmModeModeInfo* mode = &display->display_modes[OWM_RENDER_DISPLAY.selected_mode_idx];
 
   // Plane
   drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_fb_id, fb_id);
@@ -112,42 +111,42 @@ void key_pressed_callback(uint16_t key_code, bool pressed) {
 }
 
 int main() {
-  if (OfyaKeyboards_setup()) {
+  if (owmKeyboards_setup()) {
     fprintf(stderr, "Failed to find a keyboard\n");
     return 1;
   }
-  OfyaKeyboards_set_key_press_callback(key_pressed_callback);
+  owmKeyboards_set_key_press_callback(key_pressed_callback);
 
-  if (OfyaDisplays_scan()) {
+  if (owmDisplays_scan()) {
     perror("OfyaDisplay_scan");
     return 1;
   }
 
-  if (OfyaRenderDisplay_pick()) {
-    OfyaDisplays_close();
+  if (owmRenderDisplay_pick()) {
+    owmDisplays_close();
     return 1;
   }
 
-  OfyaEventPollFds_setup();
+  owmEventPollFds_setup();
 
-  if (OfyaRenderContext_init()) {
-    OfyaDisplays_close();
+  if (owmRenderContext_init()) {
+    owmDisplays_close();
     return 1;
   }
 
-  OfyaDisplay *display = RENDER_DISPLAY.display;
-  drmModeModeInfo* mode = &display->display_modes[RENDER_DISPLAY.selected_mode_idx];
+  owmDisplay *display = OWM_RENDER_DISPLAY.display;
+  drmModeModeInfo* mode = &display->display_modes[OWM_RENDER_DISPLAY.selected_mode_idx];
 
   uint32_t frame_count = 0;
 
-  OfyaEventPollFds_setup();
+  owmEventPollFds_setup();
 
   while (running) {
-    OfyaEventPollFds_poll();
+    owmEventPollFds_poll();
 
-    if (RENDER_CONTEXT.queuedBuffer == -1) {
+    if (OWM_RENDER_CONTEXT.queuedBuffer == -1) {
       // Render
-      int renderFrameBufferIdx = OfyaRenderContext_find_free_buffer();
+      int renderFrameBufferIdx = owmRenderContext_find_free_buffer();
       if (renderFrameBufferIdx < 0) {
         // This should not happen, but don't crash yet
         fprintf(stderr, "Could not find free buffer to render");
@@ -155,21 +154,21 @@ int main() {
       }
 
       uint32_t color = frame_count & 1 ? 0x00FF0000 : 0x000000FF;
-      uint32_t *pixel = RENDER_CONTEXT.frameBuffers[renderFrameBufferIdx].buffer.map;
+      uint32_t *pixel = OWM_RENDER_CONTEXT.frameBuffers[renderFrameBufferIdx].buffer.map;
       for (uint32_t y = 0; y < mode->vdisplay; ++y) {
         for (uint32_t x = 0; x < mode->hdisplay; ++x) {
           pixel[x] = color;
         }
-        pixel += RENDER_CONTEXT.frameBuffers[renderFrameBufferIdx].buffer.pitch / 4; // Divide by 4, since pixel jumps by 4 bytes
+        pixel += OWM_RENDER_CONTEXT.frameBuffers[renderFrameBufferIdx].buffer.pitch / 4; // Divide by 4, since pixel jumps by 4 bytes
       }
 
       // Submit render
-      static OfyaFlipEvent flipEvent;
+      static owmFlipEvent flipEvent;
       flipEvent.bufferIndex = renderFrameBufferIdx;
 
-      if (commitAtomicRenderRequest(RENDER_CONTEXT.frameBuffers[renderFrameBufferIdx].buffer.fb_id, &flipEvent) == 0) {
-        RENDER_CONTEXT.frameBuffers[renderFrameBufferIdx].state = FB_QUEUED;
-        RENDER_CONTEXT.queuedBuffer = renderFrameBufferIdx;
+      if (commitAtomicRenderRequest(OWM_RENDER_CONTEXT.frameBuffers[renderFrameBufferIdx].buffer.fb_id, &flipEvent) == 0) {
+        OWM_RENDER_CONTEXT.frameBuffers[renderFrameBufferIdx].state = FB_QUEUED;
+        OWM_RENDER_CONTEXT.queuedBuffer = renderFrameBufferIdx;
 
         // Ack frame
         frame_count++;
@@ -179,9 +178,9 @@ int main() {
     }
   }
 
-  OfyaKeyboards_close();
-  OfyaRenderContext_close();
-  OfyaDisplays_close();
+  owmKeyboards_close();
+  owmRenderContext_close();
+  owmDisplays_close();
 
   return 0;
 }

@@ -12,40 +12,40 @@ typedef struct {
   uint32_t pitch; 
   size_t size;
   void *map;
-} OfyaDumbFrameBuffer;
+} owmDumbFrameBuffer;
 
-enum FBState {
+enum owmFBState {
   FB_FREE,
   FB_QUEUED,
   FB_DISPLAYED
 };
 
 typedef struct {
-  OfyaDumbFrameBuffer buffer;
-  enum FBState state;
-} OfyaFrameBuffer ;
+  owmDumbFrameBuffer buffer;
+  enum owmFBState state;
+} owmFrameBuffer ;
 
 typedef struct {
   uint64_t lastTimestamp;
   uint64_t frameTime;
-  OfyaFrameBuffer frameBuffers[FB_COUNT];
+  owmFrameBuffer frameBuffers[FB_COUNT];
   size_t displayedBufferIdx;
   int queuedBuffer;
-} OfyaRenderContext;
+} owmRenderContext;
 
 typedef struct {
   int bufferIndex;
-} OfyaFlipEvent;
+} owmFlipEvent;
 
-extern OfyaRenderContext RENDER_CONTEXT;
+extern owmRenderContext OWM_RENDER_CONTEXT;
 
-/// Initializes the global `RENDER_CONTEXT` object
-int OfyaRenderContext_init();
+/// Initializes the global `OWM_RENDER_CONTEXT` object
+int owmRenderContext_init();
 /// Cleans up objects created for the global `RENDER_CONTEXT` object
-void OfyaRenderContext_close();
+void owmRenderContext_close();
 
 /// Returns the index of the first free buffer that it finds to be drawn upon
-int OfyaRenderContext_find_free_buffer();
+int owmRenderContext_find_free_buffer();
 
 /// Page flip handler
-void page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec, void *data);
+void owm_page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec, void *data);
