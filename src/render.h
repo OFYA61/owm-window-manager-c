@@ -52,5 +52,10 @@ int owmRenderContext_swap_frame_buffer();
 /// Checks if a swap request can be submitted
 bool owmRenderContext_can_swap_frame();
 
+uint32_t owmRenderDisplay_get_width();
+uint32_t owmRenderDisplay_get_height();
+
+int owmRenderDisplay_get_fd_card();
+
 /// Page flip handler.
 void owmRenderContext_page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec, void *data);

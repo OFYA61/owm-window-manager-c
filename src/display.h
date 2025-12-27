@@ -49,18 +49,9 @@ typedef struct {
   size_t count;
 } owmDisplays;
 
-typedef struct {
-  owmDisplay* display;
-  uint32_t property_blob_id;
-  size_t selected_mode_idx;
-} owmRenderDisplay;
-
-extern owmRenderDisplay OWM_RENDER_DISPLAY;
-
 /// Scan the displays and return them in the global `OWM_DISPLAYS` array
 int owmDisplays_scan();
 /// Goes over the displays in the the global `OWM_DISPLAYS` array and closes them
 void owmDisplays_close();
 
-/// Queries the user to select a display from the global `OWM_DISPLAYS` array and sets it up in the global `OWM_RENDER_DISPLAY` variable
-int owmRenderDisplay_pick();
+owmDisplays* owmDisplays_get();

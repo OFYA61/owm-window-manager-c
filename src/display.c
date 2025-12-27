@@ -14,7 +14,6 @@
 #include <drm_fourcc.h>
 
 owmDisplays OWM_DISPLAYS = { NULL, 0 };
-owmRenderDisplay OWM_RENDER_DISPLAY = { NULL, 0, 0 };
 
 typedef struct {
   char **cards;
@@ -305,61 +304,6 @@ void owmDisplays_close() {
   }
 }
 
-int owmRenderDisplay_pick() {
-  size_t n_display;
-  size_t n_mode;
-
-  printf("Pick a display from 0-%ld\n", OWM_DISPLAYS.count - 1);
-  for (size_t display_idx = 0; display_idx < OWM_DISPLAYS.count; ++display_idx) {
-    owmDisplay display = OWM_DISPLAYS.displays[display_idx];
-    printf(
-      "%zd: Conn %d | Enc %d | Crtc %d | Plane Primary %d | Plane Cursor %d | Plane Overlay %d\n",
-      display_idx,
-      display.connector_id,
-      display.encoder_id,
-      display.crtc_id,
-      display.plane_primary,
-      display.plane_cursor,
-      display.plane_overlay
-    );
-  }
-  fflush(stdin);
-  scanf("%zd", &n_display);
-  if (n_display < 0 || n_display > OWM_DISPLAYS.count) {
-    fprintf(stderr, "The chose display ID %zd doesn't exist\n", n_display);
-    return 1;
-  }
-  owmDisplay* display = &OWM_DISPLAYS.displays[n_display];
-
-  printf("Pick a mode from 0-%ld\n", display->count_display_modes);
-  for (size_t mode_idx = 0; mode_idx < display->count_display_modes; ++mode_idx) {
-    drmModeModeInfo mode = display->display_modes[mode_idx];
-    printf("\t%zd: %dx%d %dHz\n", mode_idx, mode.hdisplay, mode.vdisplay, mode.vrefresh);
-  }
-  fflush(stdin);
-  scanf("%zd", &n_mode);
-  if (n_mode < 0 || n_mode > display->count_display_modes) {
-    fprintf(stderr, "The chose display ID %zd doesn't exist\n", n_mode);
-    return 1;
-  }
-
-  drmModeModeInfo mode = display->display_modes[n_mode];
-  uint32_t property_blob_id;
-  if (drmModeCreatePropertyBlob(
-    display->fd_card,
-    &mode,
-    sizeof(mode),
-    &property_blob_id
-  ) != 0 ) {
-    perror("drmModeCreatePropertyBlob");
-    return 1;
-  }
-
-  printf("Selected display stats: %dx%d %dHz\n", mode.hdisplay, mode.vdisplay, mode.vrefresh);
-
-  OWM_RENDER_DISPLAY.display = display;
-  OWM_RENDER_DISPLAY.property_blob_id = property_blob_id;
-  OWM_RENDER_DISPLAY.selected_mode_idx = n_mode;
-
-  return 0;
+inline owmDisplays* owmDisplays_get() {
+  return &OWM_DISPLAYS;
 }

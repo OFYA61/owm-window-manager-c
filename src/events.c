@@ -1,6 +1,5 @@
 #include "events.h"
 
-#include "display.h"
 #include "input.h"
 #include "render.h"
 #include <stdio.h>
@@ -18,7 +17,7 @@ void owmEventPollFds_setup() {
 
   // Register render display
   size_t index = 0;
-  OWM_EVENT_POLL_FDS.pollfds[index].fd = OWM_RENDER_DISPLAY.display->fd_card;
+  OWM_EVENT_POLL_FDS.pollfds[index].fd = owmRenderDisplay_get_fd_card();
   OWM_EVENT_POLL_FDS.pollfds[index].events = POLLIN;
   OWM_EVENT_POLL_FDS.display_idx = index;
   index++;

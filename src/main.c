@@ -19,28 +19,21 @@ int main() {
     fprintf(stderr, "Failed to find a keyboard\n");
     return 1;
   }
-  owmKeyboards_set_key_press_callback(key_pressed_callback);
 
   if (owmDisplays_scan()) {
     perror("owmDisplay_scan");
     return 1;
   }
 
-  if (owmRenderDisplay_pick()) {
-    owmDisplays_close();
-    return 1;
-  }
-
-  owmEventPollFds_setup();
-
   if (owmRenderContext_init()) {
     owmDisplays_close();
     return 1;
   }
+
+  owmEventPollFds_setup();
   owmEventPollFds_setup();
 
-  owmDisplay *display = OWM_RENDER_DISPLAY.display;
-  drmModeModeInfo* mode = &display->display_modes[OWM_RENDER_DISPLAY.selected_mode_idx];
+  owmKeyboards_set_key_press_callback(key_pressed_callback);
 
   uint32_t frame_count = 0;
 
@@ -52,8 +45,8 @@ int main() {
       owmFrameBuffer *frameBuffer = owmRenderContext_get_free_buffer();
       uint32_t color = frame_count & 1 ? 0x00FF0000 : 0x000000FF;
       uint32_t *pixel = frameBuffer->buffer.map;
-      for (uint32_t y = 0; y < mode->vdisplay; ++y) {
-        for (uint32_t x = 0; x < mode->hdisplay; ++x) {
+      for (uint32_t y = 0; y < owmRenderDisplay_get_height(); ++y) {
+        for (uint32_t x = 0; x < owmRenderDisplay_get_width(); ++x) {
           pixel[x] = color;
         }
         pixel += frameBuffer->buffer.pitch / 4; // Divide by 4, since pixel jumps by 4 bytes
