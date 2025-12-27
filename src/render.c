@@ -143,7 +143,7 @@ void page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned in
   OfyaFlipEvent *ev = data;
   int newDisplayedBufferIdx = ev->bufferIndex;
 
-  // printf("Displayed buffer %d, frame time %lu us\n", newDisplayedBufferIdx, RENDER_CONTEXT.frameTime);
+  printf("Displayed buffer %d, frame time %lu us\n", newDisplayedBufferIdx, RENDER_CONTEXT.frameTime);
 
   uint64_t now = (uint64_t) sec * 1000000 + usec;
   if (RENDER_CONTEXT.lastTimestamp != 0) {

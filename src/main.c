@@ -6,7 +6,6 @@
 #include <linux/vt.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <sys/ioctl.h>
 #include <sys/poll.h>
 #include <sys/select.h>
@@ -16,7 +15,6 @@
 #include <xf86drmMode.h>
 #include <drm_mode.h>
 #include <sys/ioctl.h>
-#include <signal.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -25,18 +23,6 @@
 #include "events.h"
 #include "input.h"
 #include "render.h"
-
-// int tty_fd;
-//
-// void vt_release(int sig) {
-//     ioctl(tty_fd, KDSETMODE, KD_TEXT);
-//     ioctl(tty_fd, VT_RELDISP, 1);
-// }
-//
-// void vt_acquire(int sig) {
-//     ioctl(tty_fd, VT_RELDISP, VT_ACKACQ);
-//     ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
-// }
 
 void PlaneProperties_init() {
   drmModeAtomicReq *atomicReq = drmModeAtomicAlloc();
@@ -157,39 +143,40 @@ int main() {
   OfyaEventPollFds_setup();
 
   while (running) {
-    int renderFrameBufferIdx = OfyaRenderContext_find_free_buffer();
-    if (renderFrameBufferIdx < 0) {
-      // This should not happen, but don't crash yet
-      fprintf(stderr, "Could not find free buffer to render");
-      continue;
-    }
-    RENDER_CONTEXT.renderFrameBufferIdx = renderFrameBufferIdx;
-
-    uint32_t color = frame_count & 1 ? 0x00FF0000 : 0x000000FF;
-    uint32_t *pixel = RENDER_CONTEXT.frameBuffers[RENDER_CONTEXT.renderFrameBufferIdx].buffer.map;
-    for (uint32_t y = 0; y < mode->vdisplay; ++y) {
-      for (uint32_t x = 0; x < mode->hdisplay; ++x) {
-        pixel[x] = color;
-      }
-      pixel += RENDER_CONTEXT.frameBuffers[RENDER_CONTEXT.renderFrameBufferIdx].buffer.pitch / 4; // Divide by 4, since pixel jumps by 4 bytes
-    }
+    OfyaEventPollFds_poll();
 
     if (RENDER_CONTEXT.queuedBuffer == -1) {
-      static OfyaFlipEvent flipEvent;
-      flipEvent.bufferIndex = RENDER_CONTEXT.renderFrameBufferIdx;
-
-      if (commitAtomicRenderRequest(RENDER_CONTEXT.frameBuffers[RENDER_CONTEXT.renderFrameBufferIdx].buffer.fb_id, &flipEvent) != 0) {
-        perror("drmModeAtomicCommit");
+      // Render
+      int renderFrameBufferIdx = OfyaRenderContext_find_free_buffer();
+      if (renderFrameBufferIdx < 0) {
+        // This should not happen, but don't crash yet
+        fprintf(stderr, "Could not find free buffer to render");
+        continue;
       }
 
-      RENDER_CONTEXT.frameBuffers[RENDER_CONTEXT.renderFrameBufferIdx].state = FB_QUEUED;
-      RENDER_CONTEXT.queuedBuffer = RENDER_CONTEXT.renderFrameBufferIdx;
+      uint32_t color = frame_count & 1 ? 0x00FF0000 : 0x000000FF;
+      uint32_t *pixel = RENDER_CONTEXT.frameBuffers[renderFrameBufferIdx].buffer.map;
+      for (uint32_t y = 0; y < mode->vdisplay; ++y) {
+        for (uint32_t x = 0; x < mode->hdisplay; ++x) {
+          pixel[x] = color;
+        }
+        pixel += RENDER_CONTEXT.frameBuffers[renderFrameBufferIdx].buffer.pitch / 4; // Divide by 4, since pixel jumps by 4 bytes
+      }
+
+      // Submit render
+      static OfyaFlipEvent flipEvent;
+      flipEvent.bufferIndex = renderFrameBufferIdx;
+
+      if (commitAtomicRenderRequest(RENDER_CONTEXT.frameBuffers[renderFrameBufferIdx].buffer.fb_id, &flipEvent) == 0) {
+        RENDER_CONTEXT.frameBuffers[renderFrameBufferIdx].state = FB_QUEUED;
+        RENDER_CONTEXT.queuedBuffer = renderFrameBufferIdx;
+
+        // Ack frame
+        frame_count++;
+      } else {
+        perror("drmModeAtomicCommit");
+      }
     }
-
-    OfyaEventPollFds_poll();
-    usleep(1000);
-
-    frame_count++;
   }
 
   OfyaKeyboards_close();

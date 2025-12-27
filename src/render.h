@@ -29,7 +29,6 @@ typedef struct {
   uint64_t lastTimestamp;
   uint64_t frameTime;
   OfyaFrameBuffer frameBuffers[FB_COUNT];
-  size_t renderFrameBufferIdx;
   size_t displayedBufferIdx;
   int queuedBuffer;
 } OfyaRenderContext;

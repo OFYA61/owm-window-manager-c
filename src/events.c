@@ -46,6 +46,8 @@ void OfyaEventPollFds_poll() {
 
   struct pollfd *pfds = EVENT_POLL_FDS.pollfds;
 
+  // TODO: check for `revents` bits `POLLERR` `POLLHUP` `POLLNVAL` for input hot-unplug or DRM fd errors
+
   if (pfds[EVENT_POLL_FDS.display_idx].revents & POLLIN) {
     drmEventContext ev = {
       .version = DRM_EVENT_CONTEXT_VERSION,
