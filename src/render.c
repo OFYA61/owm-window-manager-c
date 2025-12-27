@@ -9,7 +9,7 @@
 
 owmRenderContext OWM_RENDER_CONTEXT = { 0 };
 
-int OfyaDumbFrameBuffer_create(owmDumbFrameBuffer *out) {
+int owmDumbFrameBuffer_create(owmDumbFrameBuffer *out) {
   owmDisplay* display = OWM_RENDER_DISPLAY.display;
   drmModeModeInfo mode = OWM_RENDER_DISPLAY.display->display_modes[OWM_RENDER_DISPLAY.selected_mode_idx];
   struct drm_mode_create_dumb create = { 0 };
@@ -72,36 +72,36 @@ int OfyaDumbFrameBuffer_create(owmDumbFrameBuffer *out) {
   return 0;
 }
 
-void OfyaDumbFrameBuffer_destroy(owmDumbFrameBuffer* fb) {
+void owmDumbFrameBuffer_destroy(owmDumbFrameBuffer* fb) {
   owmDisplay* display = OWM_RENDER_DISPLAY.display;
   struct drm_mode_destroy_dumb destroy = { 0 };
   destroy.handle = fb->handle;
   drmIoctl(display->fd_card, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy);
 }
 
-void OfyaFrameBuffer_destroy(owmFrameBuffer *fb) {
-  OfyaDumbFrameBuffer_destroy(&fb->buffer);
+void owmFrameBuffer_destroy(owmFrameBuffer *fb) {
+  owmDumbFrameBuffer_destroy(&fb->buffer);
 }
 
-void OfyaFrameBuffer_destroyList(owmFrameBuffer *fb, size_t count) {
+void owmFrameBuffer_destroyList(owmFrameBuffer *fb, size_t count) {
   for (size_t i = 0; i < count; ++i) {
-    OfyaFrameBuffer_destroy(&fb[i]);
+    owmFrameBuffer_destroy(&fb[i]);
   }
 }
 
-int OfyaFrameBuffer_create(owmFrameBuffer *out) {
-  if (OfyaDumbFrameBuffer_create(&out->buffer)) {
+int owmFrameBuffer_create(owmFrameBuffer *out) {
+  if (owmDumbFrameBuffer_create(&out->buffer)) {
     return 1;
   }
   out->state = FB_FREE;
   return 0;
 }
 
-int OfyaFrameBuffer_createList(owmFrameBuffer *out, size_t count) {
+int owmFrameBuffer_createList(owmFrameBuffer *out, size_t count) {
   for (size_t i = 0; i < count; ++i) {
-    if (OfyaFrameBuffer_create(&out[i])) {
+    if (owmFrameBuffer_create(&out[i])) {
       for (size_t j = 0; j < i; ++j) {
-        OfyaFrameBuffer_destroy(&out[j]);
+        owmFrameBuffer_destroy(&out[j]);
       }
       return 1;
     }
@@ -116,7 +116,7 @@ int owmRenderContext_init() {
   OWM_RENDER_CONTEXT.displayedBufferIdx = 0;
   OWM_RENDER_CONTEXT.queuedBuffer = -1;
 
-  if (OfyaFrameBuffer_createList(OWM_RENDER_CONTEXT.frameBuffers, FB_COUNT)) {
+  if (owmFrameBuffer_createList(OWM_RENDER_CONTEXT.frameBuffers, FB_COUNT)) {
     fprintf(stderr, "Failed to create render context for the chosen display: Failed to create frame buffers.\n");
     return 1;
   }
@@ -162,7 +162,7 @@ int owmRenderContext_init() {
 }
 
 void owmRenderContext_close() {
-  OfyaFrameBuffer_destroyList(OWM_RENDER_CONTEXT.frameBuffers, FB_COUNT);
+  owmFrameBuffer_destroyList(OWM_RENDER_CONTEXT.frameBuffers, FB_COUNT);
 }
 
 owmFrameBuffer* owmRenderContext_get_free_buffer() {
@@ -224,7 +224,7 @@ int owmRenderContext_swap_frame_buffer() {
   return 0;
 }
 
-bool owmRenderContext_can_swap_frame() {
+inline bool owmRenderContext_can_swap_frame() {
   return OWM_RENDER_CONTEXT.queuedBuffer == -1;
 }
 

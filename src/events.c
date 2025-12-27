@@ -40,7 +40,7 @@ void owmEventPollFds_poll() {
     return;
   }
   if (ret < 0) {
-    perror("OfyaEventPollFds_poll: poll");
+    perror("owmEventPollFds_poll: poll");
     return;
   }
 

@@ -22,7 +22,7 @@ int main() {
   owmKeyboards_set_key_press_callback(key_pressed_callback);
 
   if (owmDisplays_scan()) {
-    perror("OfyaDisplay_scan");
+    perror("owmDisplay_scan");
     return 1;
   }
 
