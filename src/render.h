@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -31,21 +32,25 @@ typedef struct {
   owmFrameBuffer frameBuffers[FB_COUNT];
   size_t displayedBufferIdx;
   int queuedBuffer;
+  int renderFrameBufferIdx;
 } owmRenderContext;
 
 typedef struct {
   int bufferIndex;
 } owmFlipEvent;
 
-extern owmRenderContext OWM_RENDER_CONTEXT;
-
-/// Initializes the global `OWM_RENDER_CONTEXT` object
+/// Initializes the render context
 int owmRenderContext_init();
-/// Cleans up objects created for the global `RENDER_CONTEXT` object
+/// Cleans up objects related to the render context
 void owmRenderContext_close();
 
-/// Returns the index of the first free buffer that it finds to be drawn upon
-int owmRenderContext_find_free_buffer();
+/// Returns a `owmFrameBuffer` that is ready to be drawn upon.
+/// If no frame buffer is free, returns `NULL`.
+owmFrameBuffer* owmRenderContext_get_free_buffer();
+/// Submit swap request
+int owmRenderContext_swap_frame_buffer();
+/// Checks if a swap request can be submitted
+bool owmRenderContext_can_swap_frame();
 
-/// Page flip handler
-void owm_page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec, void *data);
+/// Page flip handler.
+void owmRenderContext_page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec, void *data);

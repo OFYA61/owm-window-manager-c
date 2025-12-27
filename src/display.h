@@ -55,7 +55,6 @@ typedef struct {
   size_t selected_mode_idx;
 } owmRenderDisplay;
 
-extern owmDisplays OWM_DISPLAYS;
 extern owmRenderDisplay OWM_RENDER_DISPLAY;
 
 /// Scan the displays and return them in the global `OWM_DISPLAYS` array

@@ -51,7 +51,7 @@ void owmEventPollFds_poll() {
   if (pfds[OWM_EVENT_POLL_FDS.display_idx].revents & POLLIN) {
     drmEventContext ev = {
       .version = DRM_EVENT_CONTEXT_VERSION,
-      .page_flip_handler = owm_page_flip_handler
+      .page_flip_handler = owmRenderContext_page_flip_handler
     };
     drmHandleEvent(pfds[OWM_EVENT_POLL_FDS.display_idx].fd, &ev);
   }

@@ -123,6 +123,41 @@ int owmRenderContext_init() {
 
   OWM_RENDER_CONTEXT.frameBuffers[OWM_RENDER_CONTEXT.displayedBufferIdx].state = FB_DISPLAYED;
 
+  // Initial atomic request to setup rendering
+  drmModeAtomicReq *atomicReq = drmModeAtomicAlloc();
+
+  owmPrimaryPlaneProperties* plane_props = &OWM_RENDER_DISPLAY.display->plane_primary_properties;
+  owmDisplay *render_display = OWM_RENDER_DISPLAY.display;
+  drmModeModeInfo* mode = &render_display->display_modes[OWM_RENDER_DISPLAY.selected_mode_idx];
+
+  // TODO: Proper multi-output routing
+  // NVIDIA + USB-C mirrors connectors onto a single CRTC.
+  // This needs driver-specific handling.
+  drmModeAtomicAddProperty(atomicReq, render_display->connector_id, plane_props->connector_crtc_id, render_display->crtc_id);
+
+  // CRTC
+  drmModeAtomicAddProperty(atomicReq, render_display->crtc_id, plane_props->crtc_activate, 1);
+  drmModeAtomicAddProperty(atomicReq, render_display->crtc_id, plane_props->crtc_mode_id, OWM_RENDER_DISPLAY.property_blob_id);
+
+  // Plane
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_fb_id, OWM_RENDER_CONTEXT.frameBuffers[OWM_RENDER_CONTEXT.displayedBufferIdx].buffer.fb_id);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_crtc_id, render_display->crtc_id);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_crtc_x, 0);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_crtc_y, 0);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_crtc_w, mode->hdisplay);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_crtc_h, mode->vdisplay);
+
+  // SRC are 16.16 fixed-point
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_src_x, 0);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_src_y, 0);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_src_w, mode->hdisplay << 16);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_src_h, mode->vdisplay << 16);
+
+  if (drmModeAtomicCommit(render_display->fd_card, atomicReq, DRM_MODE_ATOMIC_ALLOW_MODESET, NULL) != 0) {
+    perror("drmModeAtomicCommit INIT");
+  }
+  drmModeAtomicFree(atomicReq);
+
   return 0;
 }
 
@@ -130,16 +165,70 @@ void owmRenderContext_close() {
   OfyaFrameBuffer_destroyList(OWM_RENDER_CONTEXT.frameBuffers, FB_COUNT);
 }
 
-int owmRenderContext_find_free_buffer() {
+owmFrameBuffer* owmRenderContext_get_free_buffer() {
   for (int buf_idx = 0; buf_idx < FB_COUNT; ++buf_idx) {
     if (OWM_RENDER_CONTEXT.frameBuffers[buf_idx].state == FB_FREE) {
-      return buf_idx;
+      OWM_RENDER_CONTEXT.renderFrameBufferIdx = buf_idx;
+      return &OWM_RENDER_CONTEXT.frameBuffers[buf_idx];
     }
   }
-  return -1;
+  return NULL;
 }
 
-void owm_page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec, void *data) {
+int owmRenderContext_swap_frame_buffer() {
+  static owmFlipEvent flipEvent;
+  flipEvent.bufferIndex = OWM_RENDER_CONTEXT.renderFrameBufferIdx;
+
+  drmModeAtomicReq *atomicReq = drmModeAtomicAlloc();
+
+  owmPrimaryPlaneProperties* plane_props = &OWM_RENDER_DISPLAY.display->plane_primary_properties;
+  owmDisplay *display = OWM_RENDER_DISPLAY.display;
+  drmModeModeInfo* mode = &display->display_modes[OWM_RENDER_DISPLAY.selected_mode_idx];
+
+  // Plane
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_fb_id, OWM_RENDER_CONTEXT.frameBuffers[OWM_RENDER_CONTEXT.renderFrameBufferIdx].buffer.fb_id);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_crtc_id, display->crtc_id);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_crtc_x, 0);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_crtc_y, 0);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_crtc_w, mode->hdisplay);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_crtc_h, mode->vdisplay);
+
+  // SRC are 16.16 fixed-point
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_src_x, 0);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_src_y, 0);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_src_w, mode->hdisplay << 16);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_src_h, mode->vdisplay << 16);
+
+  int ret = drmModeAtomicCommit(
+    display->fd_card,
+    atomicReq,
+    DRM_MODE_ATOMIC_TEST_ONLY,
+    NULL
+  );
+  if (ret != 0) {
+    perror("drmModeAtomicCommit TEST");
+    drmModeAtomicFree(atomicReq);
+    return ret;
+  }
+
+  int commitResult = drmModeAtomicCommit(display->fd_card, atomicReq, DRM_MODE_ATOMIC_NONBLOCK | DRM_MODE_PAGE_FLIP_EVENT, &flipEvent);
+  if (commitResult != 0) {
+    perror("drmModeAtomicCommit: failed to commit frame buffer swap request");
+    return 1;
+  }
+
+  OWM_RENDER_CONTEXT.frameBuffers[OWM_RENDER_CONTEXT.renderFrameBufferIdx].state = FB_QUEUED;
+  OWM_RENDER_CONTEXT.queuedBuffer = OWM_RENDER_CONTEXT.renderFrameBufferIdx;
+
+  drmModeAtomicFree(atomicReq);
+  return 0;
+}
+
+bool owmRenderContext_can_swap_frame() {
+  return OWM_RENDER_CONTEXT.queuedBuffer == -1;
+}
+
+void owmRenderContext_page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec, void *data) {
   owmFlipEvent *ev = data;
   int newDisplayedBufferIdx = ev->bufferIndex;
 
