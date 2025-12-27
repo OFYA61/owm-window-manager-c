@@ -1,6 +1,7 @@
 #include <linux/input-event-codes.h>
 #include <stdio.h>
 
+#include "owm.h"
 #include "display.h"
 #include "events.h"
 #include "input.h"
@@ -15,23 +16,10 @@ void key_pressed_callback(uint16_t key_code, bool pressed) {
 }
 
 int main() {
-  if (owmKeyboards_setup()) {
-    fprintf(stderr, "Failed to find a keyboard\n");
+  if (owm_init()) {
+    fprintf(stderr, "Failed to initialize owm\n");
     return 1;
   }
-
-  if (owmDisplays_scan()) {
-    perror("owmDisplay_scan");
-    return 1;
-  }
-
-  if (owmRenderContext_init()) {
-    owmDisplays_close();
-    return 1;
-  }
-
-  owmEventPollFds_setup();
-  owmEventPollFds_setup();
 
   owmKeyboards_set_key_press_callback(key_pressed_callback);
 
@@ -59,9 +47,7 @@ int main() {
     }
   }
 
-  owmKeyboards_close();
-  owmRenderContext_close();
-  owmDisplays_close();
+  owm_cleanup();
 
   return 0;
 }
