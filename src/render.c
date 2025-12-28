@@ -317,7 +317,7 @@ void owmRenderContext_page_flip_handler(int fd, unsigned int frame, unsigned int
   owmFlipEvent *ev = data;
   int newDisplayedBufferIdx = ev->bufferIndex;
 
-  // printf("Displayed buffer %d, frame time %lu us\n", newDisplayedBufferIdx, OWM_RENDER_CONTEXT.frameTime);
+  printf("Displayed buffer %d, frame time %lu us\n", newDisplayedBufferIdx, OWM_RENDER_CONTEXT.frameTime);
 
   uint64_t now = (uint64_t) sec * 1000000 + usec;
   if (OWM_RENDER_CONTEXT.lastTimestamp != 0) {

@@ -27,12 +27,12 @@ typedef struct {
 } owmFrameBuffer ;
 
 typedef struct {
-  uint64_t lastTimestamp;
-  uint64_t frameTime;
-  owmFrameBuffer frameBuffers[FB_COUNT];
-  size_t displayedBufferIdx;
-  int queuedBuffer;
-  int renderFrameBufferIdx;
+  uint64_t last_timestamp;
+  uint64_t frame_time;
+  owmFrameBuffer frame_buffers[FB_COUNT];
+  size_t displayed_buffer_idx;
+  int queued_buffer;
+  int render_frame_buffer_idx;
 } owmRenderContext;
 
 typedef struct {
