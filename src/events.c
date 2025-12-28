@@ -73,7 +73,7 @@ void owmEvents_poll() {
     return;
   }
   if (ret < 0) {
-    perror("owmEventPollFds_poll: poll");
+    perror("owmEvents_poll: poll");
     return;
   }
 

@@ -1,12 +1,14 @@
 #include <linux/input-event-codes.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "owm.h"
 #include "events.h"
-#include "input.h"
 #include "render.h"
 
 bool running = true;
+uint32_t mouse_pos_x = 0;
+uint32_t mouse_pos_y = 0;
 
 void keyboard_key_press_callback(uint16_t key_code, bool pressed) {
   if (pressed && key_code == KEY_ESC) {
@@ -18,6 +20,21 @@ void mouse_key_press_callback(uint16_t key_code, bool pressed) {
 }
 
 void mouse_move_callback(int rel_x, int rel_y) {
+  if (rel_x < 0 && (uint32_t) abs(rel_x) > mouse_pos_x) {
+    mouse_pos_x = 0;
+  } else if (mouse_pos_x + rel_x > owmRenderDisplay_get_width()) {
+    mouse_pos_x = owmRenderDisplay_get_width();
+  } else {
+    mouse_pos_x += rel_x;
+  }
+
+  if (rel_y < 0 && (uint32_t) abs(rel_y) > mouse_pos_y) {
+    mouse_pos_y = 0;
+  } else if (mouse_pos_y + rel_y > owmRenderDisplay_get_height()) {
+    mouse_pos_y = owmRenderDisplay_get_height();
+  } else {
+    mouse_pos_y += rel_y;
+  }
 }
 
 int main() {
@@ -30,26 +47,29 @@ int main() {
   owmEvents_set_mouse_key_press_callback(mouse_key_press_callback);
   owmEvents_set_mouse_move_callback(mouse_move_callback);
 
-  uint32_t frame_count = 0;
-
   while (running) {
     owmEvents_poll();
 
     if (owmRenderContext_can_swap_frame()) {
       // Render
       owmFrameBuffer *frameBuffer = owmRenderContext_get_free_buffer();
-      uint32_t color = frame_count & 1 ? 0x00FF0000 : 0x000000FF;
+      uint32_t color = 0x00000000;
+      uint32_t cursor_color = 0x00FFFFFF;
       uint32_t *pixel = frameBuffer->buffer.map;
       for (uint32_t y = 0; y < owmRenderDisplay_get_height(); ++y) {
         for (uint32_t x = 0; x < owmRenderDisplay_get_width(); ++x) {
-          pixel[x] = color;
+          if (x == mouse_pos_x && y == mouse_pos_y) {
+            pixel[x] = cursor_color;
+          } else {
+            pixel[x] = color;
+          }
         }
         pixel += frameBuffer->buffer.pitch / 4; // Divide by 4, since pixel jumps by 4 bytes
       }
 
       // Submit render
-      if (owmRenderContext_swap_frame_buffer() == 0) {
-        frame_count++;
+      if (owmRenderContext_swap_frame_buffer() != 0) {
+        fprintf(stderr, "Failed to swap frame buffer\n");
       }
     }
   }
