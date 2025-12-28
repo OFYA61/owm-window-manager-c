@@ -185,16 +185,16 @@ int owmRenderContext_init() {
 
   printf("Creating render context for the chosen display\n");
 
-  OWM_RENDER_CONTEXT.lastTimestamp = 0;
-  OWM_RENDER_CONTEXT.displayedBufferIdx = 0;
-  OWM_RENDER_CONTEXT.queuedBuffer = -1;
+  OWM_RENDER_CONTEXT.last_timestamp = 0;
+  OWM_RENDER_CONTEXT.displayed_buffer_idx = 0;
+  OWM_RENDER_CONTEXT.queued_buffer_idx = -1;
 
-  if (owmFrameBuffer_createList(OWM_RENDER_CONTEXT.frameBuffers, FB_COUNT)) {
+  if (owmFrameBuffer_createList(OWM_RENDER_CONTEXT.frame_buffers, FB_COUNT)) {
     fprintf(stderr, "Failed to create render context for the chosen display: Failed to create frame buffers.\n");
     return 1;
   }
 
-  OWM_RENDER_CONTEXT.frameBuffers[OWM_RENDER_CONTEXT.displayedBufferIdx].state = FB_DISPLAYED;
+  OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.displayed_buffer_idx].state = FB_DISPLAYED;
 
   // Initial atomic request to setup rendering
   drmModeAtomicReq *atomicReq = drmModeAtomicAlloc();
@@ -213,7 +213,7 @@ int owmRenderContext_init() {
   drmModeAtomicAddProperty(atomicReq, render_display->crtc_id, plane_props->crtc_mode_id, OWM_RENDER_DISPLAY.property_blob_id);
 
   // Plane
-  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_fb_id, OWM_RENDER_CONTEXT.frameBuffers[OWM_RENDER_CONTEXT.displayedBufferIdx].buffer.fb_id);
+  drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_fb_id, OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.displayed_buffer_idx].buffer.fb_id);
   drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_crtc_id, render_display->crtc_id);
   drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_crtc_x, 0);
   drmModeAtomicAddProperty(atomicReq, render_display->plane_primary, plane_props->plane_crtc_y, 0);
@@ -235,14 +235,14 @@ int owmRenderContext_init() {
 }
 
 void owmRenderContext_close() {
-  owmFrameBuffer_destroyList(OWM_RENDER_CONTEXT.frameBuffers, FB_COUNT);
+  owmFrameBuffer_destroyList(OWM_RENDER_CONTEXT.frame_buffers, FB_COUNT);
 }
 
 owmFrameBuffer* owmRenderContext_get_free_buffer() {
   for (int buf_idx = 0; buf_idx < FB_COUNT; ++buf_idx) {
-    if (OWM_RENDER_CONTEXT.frameBuffers[buf_idx].state == FB_FREE) {
-      OWM_RENDER_CONTEXT.renderFrameBufferIdx = buf_idx;
-      return &OWM_RENDER_CONTEXT.frameBuffers[buf_idx];
+    if (OWM_RENDER_CONTEXT.frame_buffers[buf_idx].state == FB_FREE) {
+      OWM_RENDER_CONTEXT.render_frame_buffer_idx = buf_idx;
+      return &OWM_RENDER_CONTEXT.frame_buffers[buf_idx];
     }
   }
   return NULL;
@@ -250,7 +250,7 @@ owmFrameBuffer* owmRenderContext_get_free_buffer() {
 
 int owmRenderContext_swap_frame_buffer() {
   static owmFlipEvent flipEvent;
-  flipEvent.bufferIndex = OWM_RENDER_CONTEXT.renderFrameBufferIdx;
+  flipEvent.bufferIndex = OWM_RENDER_CONTEXT.render_frame_buffer_idx;
 
   drmModeAtomicReq *atomicReq = drmModeAtomicAlloc();
 
@@ -259,7 +259,7 @@ int owmRenderContext_swap_frame_buffer() {
   drmModeModeInfo* mode = &display->display_modes[OWM_RENDER_DISPLAY.selected_mode_idx];
 
   // Plane
-  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_fb_id, OWM_RENDER_CONTEXT.frameBuffers[OWM_RENDER_CONTEXT.renderFrameBufferIdx].buffer.fb_id);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_fb_id, OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.render_frame_buffer_idx].buffer.fb_id);
   drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_crtc_id, display->crtc_id);
   drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_crtc_x, 0);
   drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_crtc_y, 0);
@@ -290,15 +290,15 @@ int owmRenderContext_swap_frame_buffer() {
     return 1;
   }
 
-  OWM_RENDER_CONTEXT.frameBuffers[OWM_RENDER_CONTEXT.renderFrameBufferIdx].state = FB_QUEUED;
-  OWM_RENDER_CONTEXT.queuedBuffer = OWM_RENDER_CONTEXT.renderFrameBufferIdx;
+  OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.render_frame_buffer_idx].state = FB_QUEUED;
+  OWM_RENDER_CONTEXT.queued_buffer_idx = OWM_RENDER_CONTEXT.render_frame_buffer_idx;
 
   drmModeAtomicFree(atomicReq);
   return 0;
 }
 
 inline bool owmRenderContext_can_swap_frame() {
-  return OWM_RENDER_CONTEXT.queuedBuffer == -1;
+  return OWM_RENDER_CONTEXT.queued_buffer_idx == -1;
 }
 
 inline uint32_t owmRenderDisplay_get_width() {
@@ -317,17 +317,17 @@ void owmRenderContext_page_flip_handler(int fd, unsigned int frame, unsigned int
   owmFlipEvent *ev = data;
   int newDisplayedBufferIdx = ev->bufferIndex;
 
-  printf("Displayed buffer %d, frame time %lu us\n", newDisplayedBufferIdx, OWM_RENDER_CONTEXT.frameTime);
+  printf("Displayed buffer %d, frame time %lu us\n", newDisplayedBufferIdx, OWM_RENDER_CONTEXT.frame_time);
 
   uint64_t now = (uint64_t) sec * 1000000 + usec;
-  if (OWM_RENDER_CONTEXT.lastTimestamp != 0) {
-    OWM_RENDER_CONTEXT.frameTime = now - OWM_RENDER_CONTEXT.lastTimestamp;
+  if (OWM_RENDER_CONTEXT.last_timestamp != 0) {
+    OWM_RENDER_CONTEXT.frame_time = now - OWM_RENDER_CONTEXT.last_timestamp;
   }
 
-  OWM_RENDER_CONTEXT.frameBuffers[OWM_RENDER_CONTEXT.displayedBufferIdx].state = FB_FREE; // Old displayed buffer becomes DB_FREE
-  OWM_RENDER_CONTEXT.frameBuffers[newDisplayedBufferIdx].state = FB_DISPLAYED; // New disaplyed becomes FB_DISPLAYED
+  OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.displayed_buffer_idx].state = FB_FREE; // Old displayed buffer becomes DB_FREE
+  OWM_RENDER_CONTEXT.frame_buffers[newDisplayedBufferIdx].state = FB_DISPLAYED; // New disaplyed becomes FB_DISPLAYED
 
-  OWM_RENDER_CONTEXT.displayedBufferIdx = newDisplayedBufferIdx;
-  OWM_RENDER_CONTEXT.queuedBuffer = -1;
-  OWM_RENDER_CONTEXT.lastTimestamp = now;
+  OWM_RENDER_CONTEXT.displayed_buffer_idx = newDisplayedBufferIdx;
+  OWM_RENDER_CONTEXT.queued_buffer_idx = -1;
+  OWM_RENDER_CONTEXT.last_timestamp = now;
 }

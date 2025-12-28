@@ -16,9 +16,9 @@ typedef struct {
 } owmDumbFrameBuffer;
 
 enum owmFBState {
-  FB_FREE,
+  FB_DISPLAYED,
   FB_QUEUED,
-  FB_DISPLAYED
+  FB_FREE
 };
 
 typedef struct {
@@ -30,8 +30,8 @@ typedef struct {
   uint64_t last_timestamp;
   uint64_t frame_time;
   owmFrameBuffer frame_buffers[FB_COUNT];
-  size_t displayed_buffer_idx;
-  int queued_buffer;
+  int displayed_buffer_idx;
+  int queued_buffer_idx;
   int render_frame_buffer_idx;
 } owmRenderContext;
 
