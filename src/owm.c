@@ -23,13 +23,13 @@ int owm_init() {
     return 1;
   }
 
-  owmEventPollFds_setup();
+  owmEvents_setup();
 
   return 0;
 }
 
 void owm_cleanup() {
-  owmEventPollFds_cleanup();
+  owmEvents_cleanup();
   owmInput_close();
   owmRenderContext_close();
   owmDisplays_close();

@@ -1,15 +1,18 @@
 #include "events.h"
 
-#include "input.h"
-#include "render.h"
+#include <linux/input.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/poll.h>
+#include <unistd.h>
 #include <xf86drm.h>
+
+#include "input.h"
+#include "render.h"
 
 owmEventPollFds OWM_EVENT_POLL_FDS = { 0 };
 
-void owmEventPollFds_setup() {
+void owmEvents_setup() {
   const owmKeyboards *keyboards = owmKeyboards_get();
   const owmMice *mice = owmMice_get();
   size_t size = 1 +                 // 1 for render display
@@ -48,7 +51,23 @@ void owmEventPollFds_setup() {
   OWM_EVENT_POLL_FDS.input_mice_end_idx = index - 1;
 }
 
-void owmEventPollFds_poll() {
+void (*owmEvents_keyboard_key_press_callback)(uint16_t key_code, bool pressed) = NULL;
+void (*owmEvents_mouse_key_press_callback)(uint16_t key_code, bool presssed) = NULL;
+void (*owmEvents_mouse_move_callback)(int rel_x, int rel_y) = NULL;
+
+void owmEvents_set_keyboard_key_press_callback(void (*callback)(uint16_t key_code, bool pressed)) {
+  owmEvents_keyboard_key_press_callback = callback;
+}
+
+void owmEvents_set_mouse_key_press_callback(void (*callback)(uint16_t key_code, bool pressed)) {
+  owmEvents_mouse_key_press_callback = callback;
+}
+
+void owmEvents_set_mouse_move_callback(void (*callback)(int rel_x, int rel_y)) {
+  owmEvents_mouse_move_callback = callback;
+}
+
+void owmEvents_poll() {
   int ret = poll(OWM_EVENT_POLL_FDS.pollfds, OWM_EVENT_POLL_FDS.count, -1);
   if (ret == 0) {
     return;
@@ -72,17 +91,47 @@ void owmEventPollFds_poll() {
 
   for (size_t kbd_poll_fd_idx = OWM_EVENT_POLL_FDS.input_kbd_start_idx; kbd_poll_fd_idx <= OWM_EVENT_POLL_FDS.input_kbd_end_idx; kbd_poll_fd_idx++) {
     if (pfds[kbd_poll_fd_idx].revents & POLLIN) {
-      owmKeyboard_handle_poll_event(pfds[kbd_poll_fd_idx].fd);
+      struct input_event ev;
+      while (read(pfds[kbd_poll_fd_idx].fd, &ev, sizeof(ev)) == sizeof(ev)) {
+        if (ev.type == EV_KEY && ev.value == 1) {
+          if (owmEvents_keyboard_key_press_callback != NULL) {
+            owmEvents_keyboard_key_press_callback(ev.code, ev.value ? true : false);
+          }
+        }
+      }
     }
   }
 
   for (size_t mice_poll_fd_idx = OWM_EVENT_POLL_FDS.input_mice_start_idx; mice_poll_fd_idx <= OWM_EVENT_POLL_FDS.input_mice_end_idx; mice_poll_fd_idx++) {
     if (pfds[mice_poll_fd_idx].revents & POLLIN) {
-      owmMice_handle_poll_event(pfds[mice_poll_fd_idx].fd);
+      struct input_event ev;
+      static int rel_x = 0;
+      static int rel_y = 0;
+      while (read(pfds[mice_poll_fd_idx].fd, &ev, sizeof(ev)) == sizeof(ev)) {
+        if (ev.type == EV_REL) {
+          if (ev.code == REL_X) {
+            rel_x += ev.value;
+          } else if (ev.code == REL_Y) {
+            rel_y += ev.value;
+          } else if (ev.code == REL_WHEEL) {
+            // TODO: handle scroll wheel
+          }
+        } else if (ev.type == EV_KEY) {
+          if (owmEvents_mouse_key_press_callback != NULL) {
+            owmEvents_mouse_key_press_callback(ev.code, ev.value ? true : false);
+          }
+        } else if (ev.type == EV_SYN && ev.code == SYN_REPORT) { // The mouse "packet" is complete. Dispatch total movement
+          if (owmEvents_mouse_move_callback != NULL) {
+            owmEvents_mouse_move_callback(rel_x, rel_y);
+          }
+          rel_x = 0;
+          rel_y = 0;
+        }
+      }
     }
   }
 }
 
-void owmEventPollFds_cleanup() {
+void owmEvents_cleanup() {
   free(OWM_EVENT_POLL_FDS.pollfds);
 }

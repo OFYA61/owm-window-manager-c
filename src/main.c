@@ -8,13 +8,16 @@
 
 bool running = true;
 
-void key_pressed_callback(uint16_t key_code, bool pressed) {
-  if (pressed) {
-    printf("Key pressed %d\n", key_code);
-  }
+void keyboard_key_press_callback(uint16_t key_code, bool pressed) {
   if (pressed && key_code == KEY_ESC) {
     running = false;
   }
+}
+
+void mouse_key_press_callback(uint16_t key_code, bool pressed) {
+}
+
+void mouse_move_callback(int rel_x, int rel_y) {
 }
 
 int main() {
@@ -23,12 +26,14 @@ int main() {
     return 1;
   }
 
-  owmKeyboards_set_key_press_callback(key_pressed_callback);
+  owmEvents_set_keyboard_key_press_callback(keyboard_key_press_callback);
+  owmEvents_set_mouse_key_press_callback(mouse_key_press_callback);
+  owmEvents_set_mouse_move_callback(mouse_move_callback);
 
   uint32_t frame_count = 0;
 
   while (running) {
-    owmEventPollFds_poll();
+    owmEvents_poll();
 
     if (owmRenderContext_can_swap_frame()) {
       // Render

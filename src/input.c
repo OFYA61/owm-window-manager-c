@@ -18,7 +18,6 @@
 
 owmKeyboards OWM_KEYBOARDS = { NULL, 0 };
 owmMice OWM_MICE = { NULL, 0 };
-void (*key_press_callback)(uint16_t key_code, bool pressed) = NULL;
 
 bool is_keyboard(uint8_t *ev_bits, uint8_t *key_bits) {
   if (!test_bit(EV_KEY, ev_bits)) { // Check for key capability
@@ -143,49 +142,6 @@ void owmInput_close() {
     close(mice_fd);
   }
   free(OWM_MICE.fds);
-}
-
-void owmKeyboards_set_key_press_callback(void (*callback)(uint16_t key_code, bool pressed)) {
-  key_press_callback = callback;
-}
-
-void owmKeyboard_handle_poll_event(int kbd_fd) {
-  struct input_event ev;
-
-  while (read(kbd_fd, &ev, sizeof(ev)) == sizeof(ev)) {
-    if (ev.type == EV_KEY && ev.value == 1) {
-      if (key_press_callback != NULL) {
-         key_press_callback(ev.code, ev.value ? true : false);
-      }
-    }
-  }
-}
-
-void owmMice_handle_poll_event(int mouse_fd) {
-  struct input_event ev;
-
-  static int rel_x = 0;
-  static int rel_y = 0;
-  while (read(mouse_fd, &ev, sizeof(ev)) == sizeof(ev)) {
-    if (ev.type == EV_REL) {
-      if (ev.code == REL_X) {
-        rel_x += ev.value;
-      } else if (ev.code == REL_Y) {
-        rel_y += ev.value;
-      } else if (ev.code == REL_WHEEL) {
-        // TODO: handle scroll wheel
-      }
-    } else if (ev.type == EV_KEY) {
-      // TODO: handle mouse button callback
-      printf("Mouse button %s %d\n", ev.value ? "PRESSED" : "RELEASED", ev.code);
-    } else if (ev.type == EV_SYN && ev.code == SYN_REPORT) {
-      // The mouse "packet" is complete. Dispatch total movement
-      // TODO: mouse movement callback
-      printf("%d %d\n", rel_x, rel_y);
-      rel_x = 0;
-      rel_y = 0;
-    }
-  }
 }
 
 inline const owmKeyboards* owmKeyboards_get() {
