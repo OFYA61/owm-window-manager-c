@@ -50,7 +50,7 @@ int main() {
   while (running) {
     owmEvents_poll();
 
-    if (owmRenderContext_can_swap_frame()) {
+    if (owmRenderContext_is_next_frame_buffer_free()) {
       // Render
       owmFrameBuffer *frameBuffer = owmRenderContext_get_free_buffer();
       uint32_t color = 0x00000000;
@@ -67,9 +67,8 @@ int main() {
         pixel += frameBuffer->buffer.pitch / 4; // Divide by 4, since pixel jumps by 4 bytes
       }
 
-      // Submit render
-      if (owmRenderContext_swap_frame_buffer() != 0) {
-        fprintf(stderr, "Failed to swap frame buffer\n");
+      if (owmRenderContext_submit_frame_buffer_swap_request() != 0) {
+        fprintf(stderr, "Failed to submit swap frame buffer request\n");
       }
     }
   }

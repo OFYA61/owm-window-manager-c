@@ -32,11 +32,11 @@ typedef struct {
   owmFrameBuffer frame_buffers[FB_COUNT];
   int displayed_buffer_idx;
   int queued_buffer_idx;
-  int render_frame_buffer_idx;
+  int next_buffer_idx;
 } owmRenderContext;
 
 typedef struct {
-  int bufferIndex;
+  int buffer_to_swap;
 } owmFlipEvent;
 
 /// Initializes the render context
@@ -44,13 +44,13 @@ int owmRenderContext_init();
 /// Cleans up objects related to the render context
 void owmRenderContext_close();
 
+/// Submit swap request
+int owmRenderContext_submit_frame_buffer_swap_request();
+/// Checks if there is a free buffer to be drawn on
+bool owmRenderContext_is_next_frame_buffer_free();
 /// Returns a `owmFrameBuffer` that is ready to be drawn upon.
 /// If no frame buffer is free, returns `NULL`.
 owmFrameBuffer* owmRenderContext_get_free_buffer();
-/// Submit swap request
-int owmRenderContext_swap_frame_buffer();
-/// Checks if a swap request can be submitted
-bool owmRenderContext_can_swap_frame();
 
 uint32_t owmRenderDisplay_get_width();
 uint32_t owmRenderDisplay_get_height();

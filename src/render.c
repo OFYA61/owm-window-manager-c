@@ -187,7 +187,8 @@ int owmRenderContext_init() {
 
   OWM_RENDER_CONTEXT.last_timestamp = 0;
   OWM_RENDER_CONTEXT.displayed_buffer_idx = 0;
-  OWM_RENDER_CONTEXT.queued_buffer_idx = -1;
+  OWM_RENDER_CONTEXT.queued_buffer_idx = 1;
+  OWM_RENDER_CONTEXT.next_buffer_idx = 2;
 
   if (owmFrameBuffer_createList(OWM_RENDER_CONTEXT.frame_buffers, FB_COUNT)) {
     fprintf(stderr, "Failed to create render context for the chosen display: Failed to create frame buffers.\n");
@@ -231,6 +232,7 @@ int owmRenderContext_init() {
   }
   drmModeAtomicFree(atomicReq);
 
+  printf("Created render context for the chosen display\n");
   return 0;
 }
 
@@ -239,19 +241,20 @@ void owmRenderContext_close() {
 }
 
 owmFrameBuffer* owmRenderContext_get_free_buffer() {
-  for (int buf_idx = 0; buf_idx < FB_COUNT; ++buf_idx) {
-    if (OWM_RENDER_CONTEXT.frame_buffers[buf_idx].state == FB_FREE) {
-      OWM_RENDER_CONTEXT.render_frame_buffer_idx = buf_idx;
-      return &OWM_RENDER_CONTEXT.frame_buffers[buf_idx];
-    }
+  if (OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.next_buffer_idx].state != FB_FREE) {
+    return NULL;
   }
-  return NULL;
+
+  owmFrameBuffer *frame_buffer = &OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.next_buffer_idx];
+  frame_buffer->state = FB_QUEUED;
+  OWM_RENDER_CONTEXT.next_buffer_idx++;
+  if (OWM_RENDER_CONTEXT.next_buffer_idx >= FB_COUNT) {
+    OWM_RENDER_CONTEXT.next_buffer_idx = 0;
+  }
+  return frame_buffer;
 }
 
-int owmRenderContext_swap_frame_buffer() {
-  static owmFlipEvent flipEvent;
-  flipEvent.bufferIndex = OWM_RENDER_CONTEXT.render_frame_buffer_idx;
-
+int owmRenderContext_submit_frame_buffer_swap_request() {
   drmModeAtomicReq *atomicReq = drmModeAtomicAlloc();
 
   owmPrimaryPlaneProperties* plane_props = &OWM_RENDER_DISPLAY.display->plane_primary_properties;
@@ -259,7 +262,7 @@ int owmRenderContext_swap_frame_buffer() {
   drmModeModeInfo* mode = &display->display_modes[OWM_RENDER_DISPLAY.selected_mode_idx];
 
   // Plane
-  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_fb_id, OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.render_frame_buffer_idx].buffer.fb_id);
+  drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_fb_id, OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.queued_buffer_idx].buffer.fb_id);
   drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_crtc_id, display->crtc_id);
   drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_crtc_x, 0);
   drmModeAtomicAddProperty(atomicReq, display->plane_primary, plane_props->plane_crtc_y, 0);
@@ -284,21 +287,25 @@ int owmRenderContext_swap_frame_buffer() {
     return ret;
   }
 
+  static owmFlipEvent flipEvent;
+  flipEvent.buffer_to_swap = OWM_RENDER_CONTEXT.queued_buffer_idx;
   int commitResult = drmModeAtomicCommit(display->fd_card, atomicReq, DRM_MODE_ATOMIC_NONBLOCK | DRM_MODE_PAGE_FLIP_EVENT, &flipEvent);
   if (commitResult != 0) {
     perror("drmModeAtomicCommit: failed to commit frame buffer swap request");
     return 1;
   }
 
-  OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.render_frame_buffer_idx].state = FB_QUEUED;
-  OWM_RENDER_CONTEXT.queued_buffer_idx = OWM_RENDER_CONTEXT.render_frame_buffer_idx;
+  OWM_RENDER_CONTEXT.queued_buffer_idx++;
+  if (OWM_RENDER_CONTEXT.queued_buffer_idx >= FB_COUNT) {
+    OWM_RENDER_CONTEXT.queued_buffer_idx = 0;
+  }
 
   drmModeAtomicFree(atomicReq);
   return 0;
 }
 
-inline bool owmRenderContext_can_swap_frame() {
-  return OWM_RENDER_CONTEXT.queued_buffer_idx == -1;
+inline bool owmRenderContext_is_next_frame_buffer_free() {
+  return OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.next_buffer_idx].state == FB_FREE;
 }
 
 inline uint32_t owmRenderDisplay_get_width() {
@@ -315,9 +322,9 @@ inline int owmRenderDisplay_get_fd_card() {
 
 void owmRenderContext_page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec, void *data) {
   owmFlipEvent *ev = data;
-  int newDisplayedBufferIdx = ev->bufferIndex;
+  int newDisplayedBufferIdx = ev->buffer_to_swap;
 
-  printf("Displayed buffer %d, frame time %lu us\n", newDisplayedBufferIdx, OWM_RENDER_CONTEXT.frame_time);
+  // printf("Displayed buffer %d, frame time %lu us\n", newDisplayedBufferIdx, OWM_RENDER_CONTEXT.frame_time);
 
   uint64_t now = (uint64_t) sec * 1000000 + usec;
   if (OWM_RENDER_CONTEXT.last_timestamp != 0) {
@@ -328,6 +335,5 @@ void owmRenderContext_page_flip_handler(int fd, unsigned int frame, unsigned int
   OWM_RENDER_CONTEXT.frame_buffers[newDisplayedBufferIdx].state = FB_DISPLAYED; // New disaplyed becomes FB_DISPLAYED
 
   OWM_RENDER_CONTEXT.displayed_buffer_idx = newDisplayedBufferIdx;
-  OWM_RENDER_CONTEXT.queued_buffer_idx = -1;
   OWM_RENDER_CONTEXT.last_timestamp = now;
 }

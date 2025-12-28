@@ -68,26 +68,15 @@ void owmEvents_set_mouse_move_callback(void (*callback)(int rel_x, int rel_y)) {
 }
 
 void owmEvents_poll() {
-  int ret = poll(OWM_EVENT_POLL_FDS.pollfds, OWM_EVENT_POLL_FDS.count, -1);
-  if (ret == 0) {
-    return;
-  }
-  if (ret < 0) {
-    perror("owmEvents_poll: poll");
+  int timeout = owmRenderContext_is_next_frame_buffer_free() ? 10 : -1;
+  int num_events = poll(OWM_EVENT_POLL_FDS.pollfds, OWM_EVENT_POLL_FDS.count, timeout);
+  if (num_events == 0) {
     return;
   }
 
   struct pollfd *pfds = OWM_EVENT_POLL_FDS.pollfds;
 
   // TODO: check for `revents` bits `POLLERR` `POLLHUP` `POLLNVAL` for input hot-unplug or DRM fd errors
-
-  if (pfds[OWM_EVENT_POLL_FDS.display_idx].revents & POLLIN) {
-    drmEventContext ev = {
-      .version = DRM_EVENT_CONTEXT_VERSION,
-      .page_flip_handler = owmRenderContext_page_flip_handler
-    };
-    drmHandleEvent(pfds[OWM_EVENT_POLL_FDS.display_idx].fd, &ev);
-  }
 
   for (size_t kbd_poll_fd_idx = OWM_EVENT_POLL_FDS.input_kbd_start_idx; kbd_poll_fd_idx <= OWM_EVENT_POLL_FDS.input_kbd_end_idx; kbd_poll_fd_idx++) {
     if (pfds[kbd_poll_fd_idx].revents & POLLIN) {
@@ -129,6 +118,14 @@ void owmEvents_poll() {
         }
       }
     }
+  }
+
+  if (pfds[OWM_EVENT_POLL_FDS.display_idx].revents & POLLIN) {
+    drmEventContext ev = {
+      .version = DRM_EVENT_CONTEXT_VERSION,
+      .page_flip_handler = owmRenderContext_page_flip_handler
+    };
+    drmHandleEvent(pfds[OWM_EVENT_POLL_FDS.display_idx].fd, &ev);
   }
 }
 
