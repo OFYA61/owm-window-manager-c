@@ -1,6 +1,7 @@
 #include <linux/input-event-codes.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "owm.h"
 #include "events.h"
@@ -47,6 +48,8 @@ void mouse_move_callback(int rel_x, int rel_y) {
 }
 
 int main() {
+  srand(time(NULL)); // Just to get different colors on dummy windows on each run
+
   if (owm_init()) {
     fprintf(stderr, "Failed to initialize owm\n");
     return 1;

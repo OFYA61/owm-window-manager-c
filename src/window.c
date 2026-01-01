@@ -18,18 +18,26 @@ typedef enum {
   OWM_WINDOW_MOUSE_ACTION_NONE,
   OWM_WINDOW_MOUSE_ACTION_DRAG,
   OWM_WINDOW_MOUSE_ACTION_RESIZE_TOP_BORDER,
+  OWM_WINDOW_MOUSE_ACTION_RESIZE_TOP_RIGHT_BORDER,
   OWM_WINDOW_MOUSE_ACTION_RESIZE_RIGHT_BORDER,
+  OWM_WINDOW_MOUSE_ACTION_RESIZE_BOTTOM_RIGHT_BORDER,
   OWM_WINDOW_MOUSE_ACTION_RESIZE_BOTTOM_BORDER,
+  OWM_WINDOW_MOUSE_ACTION_RESIZE_BOTTOM_LEFT_BORDER,
   OWM_WINDOW_MOUSE_ACTION_RESIZE_LEFT_BORDER,
+  OWM_WINDOW_MOUSE_ACTION_RESIZE_TOP_LEFT_BORDER,
 } owmWindowMouseAction ;
 
 typedef enum {
-  OWM_WINDOW_BORDER_SIDE_NONE,
-  OWM_WINDOW_BORDER_SIDE_TOP,
-  OWM_WINDOW_BORDER_SIDE_RIGHT,
-  OWM_WINDOW_BORDER_SIDE_BOTTOM,
-  OWM_WINDOW_BORDER_SIDE_LEFT
-} owmWindowBorderSide;
+  OWM_WINDOW_BORDER_NONE,
+  OWM_WINDOW_BORDER_TOP,
+  OWM_WINDOW_BORDER_TOP_RIGHT,
+  OWM_WINDOW_BORDER_RIGHT,
+  OWM_WINDOW_BORDER_BOTTOM_RIGHT,
+  OWM_WINDOW_BORDER_BOTTOM,
+  OWM_WINDOW_BORDER_BOTTOM_LEFT,
+  OWM_WINDOW_BORDER_LEFT,
+  OWM_WINDOW_BORDER_TOP_LEFT
+} owmWindowBorder;
 
 typedef struct {
   int32_t pos_x;
@@ -117,40 +125,48 @@ void owmWindows_close_window() {
   }
 }
 
-owmWindowBorderSide owmWindow_get_border_side(owmWindow* window, uint32_t x, uint32_t y){
-  if (x - window->pos_x < OWM_BORDER_SIZE) {
-    return OWM_WINDOW_BORDER_SIDE_LEFT;
+owmWindowBorder owmWindow_get_border_side_with_border_width(owmWindow* window, uint32_t x, uint32_t y, uint32_t border_width) {
+  bool is_left = x - window->pos_x < border_width;
+  bool is_right = x - window->pos_x > window->width - border_width;
+  bool is_top = y - window->pos_y < border_width;
+  bool is_bottom = y - window->pos_y > window->height - border_width;
+  if (is_top) {
+    if (is_left) {
+      return OWM_WINDOW_BORDER_TOP_LEFT;
+    }
+    if (is_right) {
+      return OWM_WINDOW_BORDER_TOP_RIGHT;
+    }
+    return OWM_WINDOW_BORDER_TOP;
   }
-  if (x - window->pos_x > window->width - OWM_BORDER_SIZE) {
-    return OWM_WINDOW_BORDER_SIDE_RIGHT;
+  if (is_bottom) {
+    if (is_left) {
+      return OWM_WINDOW_BORDER_BOTTOM_LEFT;
+    }
+    if (is_right) {
+      return OWM_WINDOW_BORDER_BOTTOM_RIGHT;
+    }
+    return OWM_WINDOW_BORDER_BOTTOM;
   }
-  if (y - window->pos_y < OWM_BORDER_SIZE) {
-    return OWM_WINDOW_BORDER_SIDE_TOP;
+  if (is_left) {
+    return OWM_WINDOW_BORDER_LEFT;
   }
-  if (y - window->pos_y > window->height - OWM_BORDER_SIZE) {
-    return OWM_WINDOW_BORDER_SIDE_BOTTOM;
+  if (is_right) {
+    return OWM_WINDOW_BORDER_RIGHT;
   }
-  return OWM_WINDOW_BORDER_SIDE_NONE;
+  return OWM_WINDOW_BORDER_NONE;
+}
+
+owmWindowBorder owmWindow_get_border_side(owmWindow* window, uint32_t x, uint32_t y){
+  return owmWindow_get_border_side_with_border_width(window, x, y, OWM_BORDER_SIZE);
 }
 
 bool owmWindow_within_border(owmWindow* window, uint32_t x, uint32_t y) {
-  return owmWindow_get_border_side(window, x, y) != OWM_WINDOW_BORDER_SIDE_NONE;
+  return owmWindow_get_border_side(window, x, y) != OWM_WINDOW_BORDER_NONE;
 }
 
-owmWindowBorderSide owmWindow_get_resize_border_size(owmWindow* window, uint32_t x, uint32_t y) {
-  if (x - window->pos_x < OWM_RESIZE_BORDER_SIZE) {
-    return OWM_WINDOW_BORDER_SIDE_LEFT;
-  }
-  if (x - window->pos_x > window->width - OWM_RESIZE_BORDER_SIZE) {
-    return OWM_WINDOW_BORDER_SIDE_RIGHT;
-  }
-  if (y - window->pos_y < OWM_RESIZE_BORDER_SIZE) {
-    return OWM_WINDOW_BORDER_SIDE_TOP;
-  }
-  if (y - window->pos_y > window->height - OWM_RESIZE_BORDER_SIZE) {
-    return OWM_WINDOW_BORDER_SIDE_BOTTOM;
-  }
-  return OWM_WINDOW_BORDER_SIDE_NONE;
+owmWindowBorder owmWindow_get_resize_border_size(owmWindow* window, uint32_t x, uint32_t y) {
+  return owmWindow_get_border_side_with_border_width(window, x, y, OWM_RESIZE_BORDER_SIZE);
 }
 
 void owmWindow_render(size_t window_idx, owmFrameBuffer* frameBuffer) {
@@ -182,11 +198,13 @@ void owmWindow_render(size_t window_idx, owmFrameBuffer* frameBuffer) {
   pixel += (frameBuffer->buffer.pitch / 4) * y_start;
   for (uint32_t y = y_start; y <= y_end; ++y) {
     for (uint32_t x = x_start; x <= x_end; ++x) {
-      if (window->focused && owmWindow_within_border(window, x, y)) {
-        pixel[x] = OWM_FOCUSED_WINDOW_BORDER_COLOR;
-      } else {
-        pixel[x] = window->color;
+      if (owmWindow_within_border(window, x, y)) {
+        if (window->focused) {
+          pixel[x] = OWM_FOCUSED_WINDOW_BORDER_COLOR;
+        }
+        continue;
       }
+      pixel[x] = window->color;
     }
     pixel += frameBuffer->buffer.pitch / 4;
   }
@@ -228,6 +246,24 @@ void owmWindows_process_mouse_move_event(uint32_t new_mouse_x, uint32_t new_mous
     window->pos_y += mouse_delta_y;
   }
 
+  if (mouse_action == OWM_WINDOW_MOUSE_ACTION_RESIZE_TOP_RIGHT_BORDER) {
+    if (mouse_delta_y != 0) {
+      uint32_t new_height = window->height - mouse_delta_y;
+      if (new_height < OWM_WINDOW_MIN_HEIGHT) {
+        return;
+      }
+      window->height = new_height;
+      window->pos_y += mouse_delta_y;
+    }
+    if (mouse_delta_x != 0) {
+      uint32_t new_width = window->width + mouse_delta_x;
+      if (new_width < OWM_WINDOW_MIN_WIDTH) {
+        return;
+      }
+      window->width = new_width;
+    }
+  }
+
   if (mouse_action == OWM_WINDOW_MOUSE_ACTION_RESIZE_RIGHT_BORDER) {
     if (mouse_delta_x == 0) {
       return;
@@ -237,6 +273,23 @@ void owmWindows_process_mouse_move_event(uint32_t new_mouse_x, uint32_t new_mous
       return;
     }
     window->width = new_width;
+  }
+
+  if (mouse_action == OWM_WINDOW_MOUSE_ACTION_RESIZE_BOTTOM_RIGHT_BORDER) {
+    if (mouse_delta_x != 0) {
+      uint32_t new_width = window->width + mouse_delta_x;
+      if (new_width < OWM_WINDOW_MIN_WIDTH) {
+        return;
+      }
+      window->width = new_width;
+    }
+    if (mouse_delta_y != 0) {
+      uint32_t new_height = window->height + mouse_delta_y;
+      if (new_height < OWM_WINDOW_MIN_HEIGHT) {
+        return;
+      }
+      window->height = new_height;
+    }
   }
 
   if (mouse_action == OWM_WINDOW_MOUSE_ACTION_RESIZE_BOTTOM_BORDER) {
@@ -250,6 +303,24 @@ void owmWindows_process_mouse_move_event(uint32_t new_mouse_x, uint32_t new_mous
     window->height = new_height;
   }
 
+  if (mouse_action == OWM_WINDOW_MOUSE_ACTION_RESIZE_BOTTOM_LEFT_BORDER) {
+    if (mouse_delta_y != 0) {
+      uint32_t new_height = window->height + mouse_delta_y;
+      if (new_height < OWM_WINDOW_MIN_HEIGHT) {
+        return;
+      }
+      window->height = new_height;
+    }
+    if (mouse_delta_x != 0) {
+      uint32_t new_width = window->width - mouse_delta_x;
+      if (new_width < OWM_WINDOW_MIN_WIDTH) {
+        return;
+      }
+      window->width= new_width;
+      window->pos_x += mouse_delta_x;
+    }
+  }
+
   if (mouse_action == OWM_WINDOW_MOUSE_ACTION_RESIZE_LEFT_BORDER) {
     if (mouse_delta_x == 0) {
       return;
@@ -260,6 +331,25 @@ void owmWindows_process_mouse_move_event(uint32_t new_mouse_x, uint32_t new_mous
     }
     window->width= new_width;
     window->pos_x += mouse_delta_x;
+  }
+
+  if (mouse_action == OWM_WINDOW_MOUSE_ACTION_RESIZE_TOP_LEFT_BORDER) {
+    if (mouse_delta_x != 0) {
+      uint32_t new_width = window->width - mouse_delta_x;
+      if (new_width < OWM_WINDOW_MIN_WIDTH) {
+        return;
+      }
+      window->width= new_width;
+      window->pos_x += mouse_delta_x;
+    }
+    if (mouse_delta_y != 0) {
+      uint32_t new_height = window->height - mouse_delta_y;
+      if (new_height < OWM_WINDOW_MIN_HEIGHT) {
+        return;
+      }
+      window->height = new_height;
+      window->pos_y += mouse_delta_y;
+    }
   }
 }
 
@@ -296,20 +386,40 @@ void owmWindows_process_mouse_key_event(uint32_t mouse_x, uint32_t mouse_y, uint
     // Focus window
     owmWindow clicked_window = OWM_WINDOWS.windows[clicked_window_idx];
     clicked_window.focused = true;
-    owmWindowBorderSide border_side = owmWindow_get_resize_border_size(&clicked_window, mouse_x, mouse_y);
-    if (border_side != OWM_WINDOW_BORDER_SIDE_NONE) {
+    owmWindowBorder border_side = owmWindow_get_resize_border_size(&clicked_window, mouse_x, mouse_y);
+    if (border_side != OWM_WINDOW_BORDER_NONE) {
       switch(border_side) {
-        case OWM_WINDOW_BORDER_SIDE_TOP:
+        case OWM_WINDOW_BORDER_TOP:
+          printf("TOP\n");
           clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_TOP_BORDER;
           break;
-        case OWM_WINDOW_BORDER_SIDE_RIGHT:
+        case OWM_WINDOW_BORDER_TOP_RIGHT:
+          printf("TOP RIGHT\n");
+          clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_TOP_RIGHT_BORDER;
+          break;
+        case OWM_WINDOW_BORDER_RIGHT:
+          printf("RIGHT\n");
           clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_RIGHT_BORDER;
           break;
-        case OWM_WINDOW_BORDER_SIDE_BOTTOM:
+        case OWM_WINDOW_BORDER_BOTTOM_RIGHT:
+          printf("BOTTOM RIGHT\n");
+          clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_BOTTOM_RIGHT_BORDER;
+          break;
+        case OWM_WINDOW_BORDER_BOTTOM:
+          printf("BOTTOM\n");
           clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_BOTTOM_BORDER;
           break;
-        case OWM_WINDOW_BORDER_SIDE_LEFT:
+        case OWM_WINDOW_BORDER_BOTTOM_LEFT:
+          printf("BOTTOM LEFT\n");
+          clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_BOTTOM_LEFT_BORDER;
+          break;
+        case OWM_WINDOW_BORDER_LEFT:
+          printf("LEFT\n");
           clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_LEFT_BORDER;
+          break;
+        case OWM_WINDOW_BORDER_TOP_LEFT:
+          printf("TOP LEFT\n");
+          clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_TOP_LEFT_BORDER;
           break;
         default:
           fprintf(stderr, "Got unexpected border side %d\n", border_side);
