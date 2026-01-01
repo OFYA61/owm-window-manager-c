@@ -7,6 +7,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define OWM_FOCUSED_WINDOW_BORDER_COLOR 0x0000FFFF
+#define OWM_WINDOW_BORDER_COLOR 0x00FF00FF
+#define OWM_BORDER_SIZE 4
+
 typedef struct {
   int32_t pos_x;
   int32_t pos_y;
@@ -45,6 +49,7 @@ void owmWindows_create_window() {
 
   // Shift all existing windows to the right
   if (OWM_WINDOWS.count > 0) {
+    OWM_WINDOWS.windows[0].focused = false; // Unfocus the currently focused window
     for (size_t window_idx = OWM_WINDOWS.count; window_idx > 0; --window_idx) {
       OWM_WINDOWS.windows[window_idx] = OWM_WINDOWS.windows[window_idx - 1];
     }
@@ -66,7 +71,7 @@ void owmWindows_create_window() {
   OWM_WINDOWS.count++;
 }
 
-void owmWindows_delete_window() {
+void owmWindows_close_window() {
   if (OWM_WINDOWS.count == 0) {
     return;
   }
@@ -87,8 +92,8 @@ void owmWindows_delete_window() {
     OWM_WINDOWS.windows[window_idx] = OWM_WINDOWS.windows[window_idx + 1];
   }
   OWM_WINDOWS.count--;
-  for (size_t window_idx = 0; window_idx < OWM_WINDOWS.count; ++window_idx) {
-    owmWindow *window = &OWM_WINDOWS.windows[window_idx];
+  if (OWM_WINDOWS.count != 0) {
+    OWM_WINDOWS.windows[0].focused = true; // Focus the next window in line
   }
 }
 
@@ -118,10 +123,18 @@ void owmWindow_render(size_t window_idx, owmFrameBuffer* frameBuffer) {
     x_end = owmRenderDisplay_get_width() - 1;
   }
 
+  uint32_t border_color = window->focused ? OWM_FOCUSED_WINDOW_BORDER_COLOR : OWM_WINDOW_BORDER_COLOR;
   pixel += (frameBuffer->buffer.pitch / 4) * y_start;
   for (uint32_t y = y_start; y <= y_end; ++y) {
     for (uint32_t x = x_start; x <= x_end; ++x) {
-      pixel[x] = window->color;
+      bool x_check = (x - window->pos_x < OWM_BORDER_SIZE) || (x - window->pos_x > window->width - OWM_BORDER_SIZE);
+      bool y_check = (y - window->pos_y < OWM_BORDER_SIZE) || (y - window->pos_y > window->height - OWM_BORDER_SIZE);
+      bool within_border = x_check || y_check;
+      if (within_border) {
+        pixel[x] = border_color;
+      } else {
+        pixel[x] = window->color;
+      }
     }
     pixel += frameBuffer->buffer.pitch / 4;
   }
@@ -166,6 +179,8 @@ void owmWindows_process_mouse_key_event(uint32_t mouse_x, uint32_t mouse_y, uint
       }
     }
 
+    OWM_WINDOWS.windows[0].focused = 0;
+
     if (clicked_window_idx == -1) {
       return;
     }
@@ -187,7 +202,7 @@ void owmWindows_process_key_event(uint16_t key_code, bool pressed) {
   if (key_code == KEY_W && pressed) {
     owmWindows_create_window();
   } else if (key_code == KEY_Q && pressed) {
-    owmWindows_delete_window();
+    owmWindows_close_window();
   }
 }
 
