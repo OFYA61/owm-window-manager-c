@@ -6,6 +6,7 @@
 #include "events.h"
 #include "input.h"
 #include "render.h"
+#include "window.h"
 
 int owm_init() {
   if (owmInput_setup()) {
@@ -29,6 +30,7 @@ int owm_init() {
 }
 
 void owm_cleanup() {
+  owmWindows_cleanup();
   owmEvents_cleanup();
   owmInput_close();
   owmRenderContext_close();

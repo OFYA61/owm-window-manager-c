@@ -82,7 +82,7 @@ void owmEvents_poll() {
     if (pfds[kbd_poll_fd_idx].revents & POLLIN) {
       struct input_event ev;
       while (read(pfds[kbd_poll_fd_idx].fd, &ev, sizeof(ev)) == sizeof(ev)) {
-        if (ev.type == EV_KEY && ev.value == 1) {
+        if (ev.type == EV_KEY) {
           if (owmEvents_keyboard_key_press_callback != NULL) {
             owmEvents_keyboard_key_press_callback(ev.code, ev.value ? true : false);
           }

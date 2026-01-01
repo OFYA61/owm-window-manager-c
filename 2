@@ -19,15 +19,12 @@ void keyboard_key_press_callback(uint16_t key_code, bool pressed) {
 }
 
 void mouse_key_press_callback(uint16_t key_code, bool pressed) {
-  owmWindows_process_mouse_key_event(mouse_pos_x, mouse_pos_y, key_code, pressed);
 }
 
 void mouse_move_callback(int rel_x, int rel_y) {
   if (rel_x < 0 && (uint32_t) abs(rel_x) > mouse_pos_x) {
     mouse_pos_x = 0;
-    rel_x = 0;
   } else if (mouse_pos_x + rel_x > owmRenderDisplay_get_width() - 1) {
-    rel_x = owmRenderDisplay_get_width() - 1 - mouse_pos_x;
     mouse_pos_x = owmRenderDisplay_get_width() - 1;
   } else {
     mouse_pos_x += rel_x;
@@ -35,15 +32,11 @@ void mouse_move_callback(int rel_x, int rel_y) {
 
   if (rel_y < 0 && (uint32_t) abs(rel_y) > mouse_pos_y) {
     mouse_pos_y = 0;
-    rel_y = 0;
   } else if (mouse_pos_y + rel_y > owmRenderDisplay_get_height() - 1) {
-    rel_y = owmRenderDisplay_get_height() - 1 - mouse_pos_y;
     mouse_pos_y = owmRenderDisplay_get_height() - 1;
   } else {
     mouse_pos_y += rel_y;
   }
-
-  owmWindows_process_mouse_move_event(mouse_pos_x, mouse_pos_y, rel_x, rel_y);
 }
 
 int main() {
