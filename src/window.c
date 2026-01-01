@@ -10,6 +10,25 @@
 #define OWM_FOCUSED_WINDOW_BORDER_COLOR 0x0000FFFF
 #define OWM_WINDOW_BORDER_COLOR 0x00FF00FF
 #define OWM_BORDER_SIZE 4
+#define OWM_WINDOW_MIN_WIDTH 120
+#define OWM_WINDOW_MIN_HEIGHT 120
+
+typedef enum {
+  OWM_WINDOW_MOUSE_ACTION_NONE,
+  OWM_WINDOW_MOUSE_ACTION_DRAG,
+  OWM_WINDOW_MOUSE_ACTION_RESIZE_TOP_BORDER,
+  OWM_WINDOW_MOUSE_ACTION_RESIZE_RIGHT_BORDER,
+  OWM_WINDOW_MOUSE_ACTION_RESIZE_BOTTOM_BORDER,
+  OWM_WINDOW_MOUSE_ACTION_RESIZE_LEFT_BORDER,
+} owmWindowMouseAction ;
+
+typedef enum {
+  OWM_WINDOW_BORDER_SIDE_NONE,
+  OWM_WINDOW_BORDER_SIDE_TOP,
+  OWM_WINDOW_BORDER_SIDE_RIGHT,
+  OWM_WINDOW_BORDER_SIDE_BOTTOM,
+  OWM_WINDOW_BORDER_SIDE_LEFT
+} owmWindowBorderSide;
 
 typedef struct {
   int32_t pos_x;
@@ -18,7 +37,7 @@ typedef struct {
   uint32_t height;
   
   bool focused;
-  bool dragging;
+  owmWindowMouseAction mouse_action;
 
   uint32_t color;
 } owmWindow;
@@ -63,7 +82,7 @@ void owmWindows_create_window() {
     .width = 400,
     .height = 300,
     .focused = true,
-    .dragging = false,
+    .mouse_action = OWM_WINDOW_MOUSE_ACTION_NONE,
     .color = rand_color
   };
 
@@ -97,6 +116,26 @@ void owmWindows_close_window() {
   }
 }
 
+owmWindowBorderSide owmWindow_get_border_side(owmWindow* window, uint32_t x, uint32_t y){
+  if (x - window->pos_x < OWM_BORDER_SIZE) {
+    return OWM_WINDOW_BORDER_SIDE_LEFT;
+  }
+  if (x - window->pos_x > window->width - OWM_BORDER_SIZE) {
+    return OWM_WINDOW_BORDER_SIDE_RIGHT;
+  }
+  if (y - window->pos_y < OWM_BORDER_SIZE) {
+    return OWM_WINDOW_BORDER_SIDE_TOP;
+  }
+  if (y - window->pos_y > window->height - OWM_BORDER_SIZE) {
+    return OWM_WINDOW_BORDER_SIDE_BOTTOM;
+  }
+  return OWM_WINDOW_BORDER_SIDE_NONE;
+}
+
+bool owmWindow_within_border(owmWindow* window, uint32_t x, uint32_t y) {
+  return owmWindow_get_border_side(window, x, y) != OWM_WINDOW_BORDER_SIDE_NONE;
+}
+
 void owmWindow_render(size_t window_idx, owmFrameBuffer* frameBuffer) {
   owmWindow* window = &OWM_WINDOWS.windows[window_idx];
   uint32_t *pixel = frameBuffer->buffer.map;
@@ -127,10 +166,7 @@ void owmWindow_render(size_t window_idx, owmFrameBuffer* frameBuffer) {
   pixel += (frameBuffer->buffer.pitch / 4) * y_start;
   for (uint32_t y = y_start; y <= y_end; ++y) {
     for (uint32_t x = x_start; x <= x_end; ++x) {
-      bool x_check = (x - window->pos_x < OWM_BORDER_SIZE) || (x - window->pos_x > window->width - OWM_BORDER_SIZE);
-      bool y_check = (y - window->pos_y < OWM_BORDER_SIZE) || (y - window->pos_y > window->height - OWM_BORDER_SIZE);
-      bool within_border = x_check || y_check;
-      if (within_border) {
+      if (owmWindow_within_border(window, x, y)) {
         pixel[x] = border_color;
       } else {
         pixel[x] = window->color;
@@ -153,9 +189,61 @@ void owmWindows_render(owmFrameBuffer* frameBuffer) {
 }
 
 void owmWindows_process_mouse_move_event(uint32_t new_mouse_x, uint32_t new_mouse_y, int32_t mouse_delta_x, int32_t mouse_delta_y) {
-  if (OWM_WINDOWS.windows[0].dragging) {
-    OWM_WINDOWS.windows->pos_x += mouse_delta_x;
-    OWM_WINDOWS.windows->pos_y += mouse_delta_y;
+  if (OWM_WINDOWS.count <= 0) {
+    return;
+  }
+  owmWindow* window = &OWM_WINDOWS.windows[0];
+  owmWindowMouseAction mouse_action = window->mouse_action;
+  if (mouse_action == OWM_WINDOW_MOUSE_ACTION_DRAG) {
+    window->pos_x += mouse_delta_x;
+    window->pos_y += mouse_delta_y;
+    return;
+  }
+
+  if (mouse_action == OWM_WINDOW_MOUSE_ACTION_RESIZE_TOP_BORDER) {
+    if (mouse_delta_y == 0) {
+      return;
+    }
+    uint32_t new_height = window->height - mouse_delta_y;
+    if (new_height < OWM_WINDOW_MIN_HEIGHT) {
+      return;
+    }
+    window->height = new_height;
+    window->pos_y += mouse_delta_y;
+  }
+
+  if (mouse_action == OWM_WINDOW_MOUSE_ACTION_RESIZE_RIGHT_BORDER) {
+    if (mouse_delta_x == 0) {
+      return;
+    }
+    uint32_t new_width = window->width + mouse_delta_x;
+    if (new_width < OWM_WINDOW_MIN_WIDTH) {
+      return;
+    }
+    window->width = new_width;
+  }
+
+  if (mouse_action == OWM_WINDOW_MOUSE_ACTION_RESIZE_BOTTOM_BORDER) {
+    if (mouse_delta_y == 0) {
+      return;
+    }
+    uint32_t new_height = window->height + mouse_delta_y;
+    if (new_height < OWM_WINDOW_MIN_HEIGHT) {
+      return;
+    }
+    window->height = new_height;
+  }
+
+  if (mouse_action == OWM_WINDOW_MOUSE_ACTION_RESIZE_LEFT_BORDER) {
+    if (mouse_delta_x == 0) {
+      return;
+    }
+    uint32_t new_width = window->width - mouse_delta_x;
+    if (new_width < OWM_WINDOW_MIN_WIDTH) {
+      return;
+    }
+    window->width= new_width;
+    window->pos_x += mouse_delta_x;
   }
 }
 
@@ -165,6 +253,10 @@ void owmWindows_process_mouse_key_event(uint32_t mouse_x, uint32_t mouse_y, uint
   }
 
   if (pressed) {
+    if (OWM_WINDOWS.count <= 0) {
+      return;
+    }
+
     int clicked_window_idx = -1;
     for (size_t window_idx = 0; window_idx < OWM_WINDOWS.count; ++window_idx) {
       owmWindow* window = &OWM_WINDOWS.windows[window_idx];
@@ -185,16 +277,42 @@ void owmWindows_process_mouse_key_event(uint32_t mouse_x, uint32_t mouse_y, uint
       return;
     }
 
-    // Focus window and bring it to the front
+    // Focus window
     owmWindow clicked_window = OWM_WINDOWS.windows[clicked_window_idx];
     clicked_window.focused = true;
-    clicked_window.dragging = true;
+    owmWindowBorderSide border_side = owmWindow_get_border_side(&clicked_window, mouse_x, mouse_y);
+    if (border_side != OWM_WINDOW_BORDER_SIDE_NONE) {
+      switch(border_side) {
+        case OWM_WINDOW_BORDER_SIDE_TOP:
+          clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_TOP_BORDER;
+          break;
+        case OWM_WINDOW_BORDER_SIDE_RIGHT:
+          clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_RIGHT_BORDER;
+          break;
+        case OWM_WINDOW_BORDER_SIDE_BOTTOM:
+          clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_BOTTOM_BORDER;
+          break;
+        case OWM_WINDOW_BORDER_SIDE_LEFT:
+          clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_LEFT_BORDER;
+          break;
+        default:
+          fprintf(stderr, "Got unexpected border side %d\n", border_side);
+        break;
+      }
+    } else {
+      clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_DRAG;
+    }
+
+    // Bring it to the front
     for (size_t window_idx = (size_t) clicked_window_idx; window_idx > 0; --window_idx) {
       OWM_WINDOWS.windows[window_idx] = OWM_WINDOWS.windows[window_idx - 1];
     }
     OWM_WINDOWS.windows[0] = clicked_window;
   } else {
-    OWM_WINDOWS.windows[0].dragging = false;
+    if (OWM_WINDOWS.count <= 0) {
+      return;
+    }
+    OWM_WINDOWS.windows[0].mouse_action = OWM_WINDOW_MOUSE_ACTION_NONE;
   }
 }
 

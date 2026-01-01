@@ -62,13 +62,12 @@ int main() {
     if (owmRenderContext_is_next_frame_buffer_free()) {
       // Render
       owmFrameBuffer *frameBuffer = owmRenderContext_get_free_buffer();
-      uint32_t color = 0x00000000;
-      uint32_t cursor_color = 0x00FFFFFF;
+      uint32_t clear_color = 0x00000000;
       uint32_t *pixel = frameBuffer->buffer.map;
       // Clear screen
       for (uint32_t y = 0; y < owmRenderDisplay_get_height(); ++y) {
         for (uint32_t x = 0; x < owmRenderDisplay_get_width(); ++x) {
-          pixel[x] = color;
+          pixel[x] = clear_color;
         }
         pixel += frameBuffer->buffer.pitch / 4; // Divide by 4, since pixel jumps by 4 bytes
       }
@@ -77,6 +76,7 @@ int main() {
       owmWindows_render(frameBuffer);
 
       // Draw cursor
+      uint32_t cursor_color = 0x00FFFFFF;
       pixel = frameBuffer->buffer.map;
       pixel[mouse_pos_y * frameBuffer->buffer.pitch / 4 + mouse_pos_x] = cursor_color;
 

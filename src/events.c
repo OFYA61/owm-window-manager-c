@@ -67,6 +67,7 @@ void owmEvents_set_mouse_move_callback(void (*callback)(int rel_x, int rel_y)) {
   owmEvents_mouse_move_callback = callback;
 }
 
+// TODO: make custom code to handle key events, since the OS sends reapeadted key down events if the key is being held down
 void owmEvents_poll() {
   int timeout = owmRenderContext_is_next_frame_buffer_free() ? 10 : -1;
   int num_events = poll(OWM_EVENT_POLL_FDS.pollfds, OWM_EVENT_POLL_FDS.count, timeout);
