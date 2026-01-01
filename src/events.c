@@ -1,6 +1,8 @@
 #include "events.h"
 
+#include <linux/input-event-codes.h>
 #include <linux/input.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/poll.h>
@@ -9,6 +11,17 @@
 
 #include "input.h"
 #include "render.h"
+
+#define BITSIZE(bits) ((bits + 7) / 8)
+
+// Stores if the key is pressed or not, we need to keep track of this in order to differentiate between
+// an initial press and a repeat press
+uint8_t KEY_STATUS[BITSIZE(KEY_MAX)] = { 0 };
+
+#define IS_KEY_PRESSED(idx) (KEY_STATUS[(idx)/8] & (1 << ((idx) % 8)))
+#define CLEAR_KEY_PRESS(idx) (KEY_STATUS[(idx)/8] &= ~(1 << ((idx) % 8)))
+#define MARK_KEY_PRESSED(idx) (KEY_STATUS[(idx)/8] |= (1 << ((idx) % 8)))
+
 
 owmEventPollFds OWM_EVENT_POLL_FDS = { 0 };
 
@@ -51,15 +64,15 @@ void owmEvents_setup() {
   OWM_EVENT_POLL_FDS.input_mice_end_idx = index - 1;
 }
 
-void (*owmEvents_keyboard_key_press_callback)(uint16_t key_code, bool pressed) = NULL;
-void (*owmEvents_mouse_key_press_callback)(uint16_t key_code, bool presssed) = NULL;
+void (*owmEvents_keyboard_key_press_callback)(uint16_t key_code, owmEventKeyEventType event_type) = NULL;
+void (*owmEvents_mouse_key_press_callback)(uint16_t key_code, owmEventKeyEventType event_type) = NULL;
 void (*owmEvents_mouse_move_callback)(int rel_x, int rel_y) = NULL;
 
-void owmEvents_set_keyboard_key_press_callback(void (*callback)(uint16_t key_code, bool pressed)) {
+void owmEvents_set_keyboard_key_press_callback(void (*callback)(uint16_t key_code, owmEventKeyEventType event_type)) {
   owmEvents_keyboard_key_press_callback = callback;
 }
 
-void owmEvents_set_mouse_key_press_callback(void (*callback)(uint16_t key_code, bool pressed)) {
+void owmEvents_set_mouse_key_press_callback(void (*callback)(uint16_t key_code, owmEventKeyEventType event_type)) {
   owmEvents_mouse_key_press_callback = callback;
 }
 
@@ -67,7 +80,19 @@ void owmEvents_set_mouse_move_callback(void (*callback)(int rel_x, int rel_y)) {
   owmEvents_mouse_move_callback = callback;
 }
 
-// TODO: make custom code to handle key events, since the OS sends reapeadted key down events if the key is being held down
+owmEventKeyEventType owmEvents_get_key_event_type(uint16_t key_code, bool pressed) {
+  if (!pressed) {
+    CLEAR_KEY_PRESS(key_code);
+    return OWM_EVENT_KEY_EVENT_RELEASE;
+  }
+  if (IS_KEY_PRESSED(key_code)) {
+    return OWM_EVENT_KEY_EVENT_PRESS_REPEATE;
+  } else {
+    MARK_KEY_PRESSED(key_code);
+    return OWM_EVENT_KEY_EVENT_PRESS;
+  }
+}
+
 void owmEvents_poll() {
   int timeout = owmRenderContext_is_next_frame_buffer_free() ? 10 : -1;
   int num_events = poll(OWM_EVENT_POLL_FDS.pollfds, OWM_EVENT_POLL_FDS.count, timeout);
@@ -84,8 +109,9 @@ void owmEvents_poll() {
       struct input_event ev;
       while (read(pfds[kbd_poll_fd_idx].fd, &ev, sizeof(ev)) == sizeof(ev)) {
         if (ev.type == EV_KEY) {
+          owmEventKeyEventType event_type = owmEvents_get_key_event_type(ev.code, ev.value ? true : false);
           if (owmEvents_keyboard_key_press_callback != NULL) {
-            owmEvents_keyboard_key_press_callback(ev.code, ev.value ? true : false);
+            owmEvents_keyboard_key_press_callback(ev.code, event_type);
           }
         }
       }
@@ -107,8 +133,9 @@ void owmEvents_poll() {
             // TODO: handle scroll wheel
           }
         } else if (ev.type == EV_KEY) {
+          owmEventKeyEventType event_type = owmEvents_get_key_event_type(ev.code, ev.value ? true : false);
           if (owmEvents_mouse_key_press_callback != NULL) {
-            owmEvents_mouse_key_press_callback(ev.code, ev.value ? true : false);
+            owmEvents_mouse_key_press_callback(ev.code, event_type);
           }
         } else if (ev.type == EV_SYN && ev.code == SYN_REPORT) { // The mouse "packet" is complete. Dispatch total movement
           if (owmEvents_mouse_move_callback != NULL) {

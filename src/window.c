@@ -1,4 +1,5 @@
 #include "window.h"
+#include "events.h"
 #include "render.h"
 
 #include <linux/input-event-codes.h>
@@ -35,7 +36,7 @@ typedef struct {
   int32_t pos_y;
   uint32_t width;
   uint32_t height;
-  
+
   bool focused;
   owmWindowMouseAction mouse_action;
 
@@ -247,12 +248,12 @@ void owmWindows_process_mouse_move_event(uint32_t new_mouse_x, uint32_t new_mous
   }
 }
 
-void owmWindows_process_mouse_key_event(uint32_t mouse_x, uint32_t mouse_y, uint16_t key_code, bool pressed) {
+void owmWindows_process_mouse_key_event(uint32_t mouse_x, uint32_t mouse_y, uint16_t key_code, owmEventKeyEventType event_type) {
   if (key_code != BTN_LEFT) { // For now only handle left mouse button events
     return;
   }
 
-  if (pressed) {
+  if (event_type == OWM_EVENT_KEY_EVENT_PRESS) {
     if (OWM_WINDOWS.count <= 0) {
       return;
     }
@@ -308,7 +309,7 @@ void owmWindows_process_mouse_key_event(uint32_t mouse_x, uint32_t mouse_y, uint
       OWM_WINDOWS.windows[window_idx] = OWM_WINDOWS.windows[window_idx - 1];
     }
     OWM_WINDOWS.windows[0] = clicked_window;
-  } else {
+  } else if (event_type == OWM_EVENT_KEY_EVENT_RELEASE) {
     if (OWM_WINDOWS.count <= 0) {
       return;
     }
@@ -316,10 +317,10 @@ void owmWindows_process_mouse_key_event(uint32_t mouse_x, uint32_t mouse_y, uint
   }
 }
 
-void owmWindows_process_key_event(uint16_t key_code, bool pressed) {
-  if (key_code == KEY_W && pressed) {
+void owmWindows_process_key_event(uint16_t key_code, owmEventKeyEventType event_type) {
+  if (key_code == KEY_W && event_type == OWM_EVENT_KEY_EVENT_PRESS) {
     owmWindows_create_window();
-  } else if (key_code == KEY_Q && pressed) {
+  } else if (key_code == KEY_Q && event_type == OWM_EVENT_KEY_EVENT_PRESS) {
     owmWindows_close_window();
   }
 }

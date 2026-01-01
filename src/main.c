@@ -11,15 +11,15 @@ bool running = true;
 uint32_t mouse_pos_x = 0;
 uint32_t mouse_pos_y = 0;
 
-void keyboard_key_press_callback(uint16_t key_code, bool pressed) {
-  if (pressed && key_code == KEY_ESC) {
+void keyboard_key_press_callback(uint16_t key_code, owmEventKeyEventType event_type) {
+  if (event_type == OWM_EVENT_KEY_EVENT_PRESS && key_code == KEY_ESC) {
     running = false;
   }
-  owmWindows_process_key_event(key_code, pressed);
+  owmWindows_process_key_event(key_code, event_type);
 }
 
-void mouse_key_press_callback(uint16_t key_code, bool pressed) {
-  owmWindows_process_mouse_key_event(mouse_pos_x, mouse_pos_y, key_code, pressed);
+void mouse_key_press_callback(uint16_t key_code, owmEventKeyEventType event_type) {
+  owmWindows_process_mouse_key_event(mouse_pos_x, mouse_pos_y, key_code, event_type);
 }
 
 void mouse_move_callback(int rel_x, int rel_y) {
