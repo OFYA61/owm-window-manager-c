@@ -58,7 +58,7 @@ OWM_DRMRenderContext OWM_DRM_RENDER_CONTEXT = { 0 };
 uint32_t OWM_DRM_SELECTED_DISPLAY_WIDTH;
 uint32_t OWM_DRM_SELECTED_DISPLAY_HEIGHT;
 
-int OWM_createDRMDumbFrameBuffer(OWM_DRMDumbFrameBuffer *out) {
+int createDRMDumbFrameBuffer(OWM_DRMDumbFrameBuffer *out) {
   OWM_DRMDisplay* display = OWM_DRM_RENDER_DISPLAY.display;
   struct drm_mode_create_dumb create = { 0 };
   create.width = OWM_DRM_SELECTED_DISPLAY_WIDTH;
@@ -120,22 +120,22 @@ int OWM_createDRMDumbFrameBuffer(OWM_DRMDumbFrameBuffer *out) {
   return 0;
 }
 
-void OWM_destroyFrameBuffer(OWM_DRMFrameBuffer *fb) {
+void destroyFrameBuffer(OWM_DRMFrameBuffer *fb) {
   OWM_DRMDisplay* display = OWM_DRM_RENDER_DISPLAY.display;
   struct drm_mode_destroy_dumb destroy = { 0 };
   destroy.handle = fb->drm_handle;
   drmIoctl(display->fd_card, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy);
 }
 
-void OWM_destroyFrameBufferList(OWM_DRMFrameBuffer *fb, size_t count) {
+void destroyFrameBufferList(OWM_DRMFrameBuffer *fb, size_t count) {
   for (size_t i = 0; i < count; ++i) {
-    OWM_destroyFrameBuffer(&fb[i]);
+    destroyFrameBuffer(&fb[i]);
   }
 }
 
-int OWM_createFrameBuffer(OWM_DRMFrameBuffer *out) {
+int createFrameBuffer(OWM_DRMFrameBuffer *out) {
   OWM_DRMDumbFrameBuffer dumbFB = { 0 };
-  if (OWM_createDRMDumbFrameBuffer(&dumbFB)) {
+  if (createDRMDumbFrameBuffer(&dumbFB)) {
     return 1;
   }
   out->drm_frame_buffer_id = dumbFB.id;
@@ -148,11 +148,11 @@ int OWM_createFrameBuffer(OWM_DRMFrameBuffer *out) {
   return 0;
 }
 
-int OWM_creatFrameBufferList(OWM_DRMFrameBuffer *out, size_t count) {
+int creatFrameBufferList(OWM_DRMFrameBuffer *out, size_t count) {
   for (size_t i = 0; i < count; ++i) {
-    if (OWM_createFrameBuffer(&out[i])) {
+    if (createFrameBuffer(&out[i])) {
       for (size_t j = 0; j < i; ++j) {
-        OWM_destroyFrameBuffer(&out[j]);
+        destroyFrameBuffer(&out[j]);
       }
       return 1;
     }
@@ -161,7 +161,7 @@ int OWM_creatFrameBufferList(OWM_DRMFrameBuffer *out, size_t count) {
 }
 
 /// Queries the user to select a display from the discovered displays array
-int OWM_pickDrmDisplay() {
+int pickDrmDisplay() {
   size_t n_display;
   size_t n_mode;
 
@@ -225,7 +225,7 @@ int OWM_pickDrmDisplay() {
 }
 
 int OWM_drmInitRenderContext() {
-  if (OWM_pickDrmDisplay()) {
+  if (pickDrmDisplay()) {
     return 1;
   }
 
@@ -236,7 +236,7 @@ int OWM_drmInitRenderContext() {
   OWM_DRM_RENDER_CONTEXT.queued_buffer_idx = 1;
   OWM_DRM_RENDER_CONTEXT.next_buffer_idx = 2;
 
-  if (OWM_creatFrameBufferList(OWM_DRM_RENDER_CONTEXT.frame_buffers, FB_COUNT)) {
+  if (creatFrameBufferList(OWM_DRM_RENDER_CONTEXT.frame_buffers, FB_COUNT)) {
     fprintf(stderr, "Failed to create render context for the chosen display: Failed to create frame buffers.\n");
     return 1;
   }
@@ -283,7 +283,7 @@ int OWM_drmInitRenderContext() {
 }
 
 void OWM_drmShutdownRenderContext() {
-  OWM_destroyFrameBufferList(OWM_DRM_RENDER_CONTEXT.frame_buffers, FB_COUNT);
+  destroyFrameBufferList(OWM_DRM_RENDER_CONTEXT.frame_buffers, FB_COUNT);
 }
 
 OWM_FrameBuffer* OWM_drmAquireFreeFrameBuffer() {

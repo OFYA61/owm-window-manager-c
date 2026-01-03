@@ -59,7 +59,7 @@ typedef struct {
 
 owmWindows OWM_WINDOWS = { NULL, 0, 0};
 
-void owmWindows_create_window() {
+void createWindow() {
   if (OWM_WINDOWS.windows == NULL) {
     OWM_WINDOWS.windows = malloc(sizeof(owmWindow) * 4);
     OWM_WINDOWS.capacity = 4;
@@ -99,7 +99,7 @@ void owmWindows_create_window() {
   OWM_WINDOWS.count++;
 }
 
-void owmWindows_close_window() {
+void closeWindow() {
   if (OWM_WINDOWS.count == 0) {
     return;
   }
@@ -125,7 +125,7 @@ void owmWindows_close_window() {
   }
 }
 
-owmWindowBorder OWM_getBorderSideWithBorderWidth(owmWindow* window, uint32_t x, uint32_t y, uint32_t border_width) {
+owmWindowBorder getBorderSideWithBorderWidth(owmWindow* window, uint32_t x, uint32_t y, uint32_t border_width) {
   bool is_left = x - window->pos_x < border_width;
   bool is_right = x - window->pos_x > window->width - border_width;
   bool is_top = y - window->pos_y < border_width;
@@ -157,19 +157,19 @@ owmWindowBorder OWM_getBorderSideWithBorderWidth(owmWindow* window, uint32_t x, 
   return OWM_WINDOW_BORDER_NONE;
 }
 
-owmWindowBorder OWM_getVisualBorderSide(owmWindow* window, uint32_t x, uint32_t y){
-  return OWM_getBorderSideWithBorderWidth(window, x, y, OWM_BORDER_SIZE);
+owmWindowBorder getVisualBorderSide(owmWindow* window, uint32_t x, uint32_t y){
+  return getBorderSideWithBorderWidth(window, x, y, OWM_BORDER_SIZE);
 }
 
-bool OWM_isPointOnVisualBorder(owmWindow* window, uint32_t x, uint32_t y) {
-  return OWM_getVisualBorderSide(window, x, y) != OWM_WINDOW_BORDER_NONE;
+bool isPointOnVisualBorder(owmWindow* window, uint32_t x, uint32_t y) {
+  return getVisualBorderSide(window, x, y) != OWM_WINDOW_BORDER_NONE;
 }
 
-owmWindowBorder OWM_getResizeBorderSide(owmWindow* window, uint32_t x, uint32_t y) {
-  return OWM_getBorderSideWithBorderWidth(window, x, y, OWM_RESIZE_BORDER_SIZE);
+owmWindowBorder getResizeBorderSide(owmWindow* window, uint32_t x, uint32_t y) {
+  return getBorderSideWithBorderWidth(window, x, y, OWM_RESIZE_BORDER_SIZE);
 }
 
-void OWM_renderWindow(size_t window_idx, OWM_FrameBuffer* frameBuffer) {
+void renderWindow(size_t window_idx, OWM_FrameBuffer* frameBuffer) {
   owmWindow* window = &OWM_WINDOWS.windows[window_idx];
   uint32_t *pixel = frameBuffer->pixels;
 
@@ -198,7 +198,7 @@ void OWM_renderWindow(size_t window_idx, OWM_FrameBuffer* frameBuffer) {
   pixel += (frameBuffer->stride) * y_start;
   for (uint32_t y = y_start; y <= y_end; ++y) {
     for (uint32_t x = x_start; x <= x_end; ++x) {
-      if (OWM_isPointOnVisualBorder(window, x, y)) {
+      if (isPointOnVisualBorder(window, x, y)) {
         if (window->focused) {
           pixel[x] = OWM_FOCUSED_WINDOW_BORDER_COLOR;
         }
@@ -218,7 +218,7 @@ void OWM_renderWindows(OWM_FrameBuffer* frameBuffer) {
   size_t window_idx = OWM_WINDOWS.count;
   do {
     window_idx--;
-    OWM_renderWindow(window_idx, frameBuffer);
+    renderWindow(window_idx, frameBuffer);
   } while(window_idx > 0);
 }
 
@@ -386,7 +386,7 @@ void OWM_processWindowMouseButtonEvent(uint32_t mouse_x, uint32_t mouse_y, uint1
     // Focus window
     owmWindow clicked_window = OWM_WINDOWS.windows[clicked_window_idx];
     clicked_window.focused = true;
-    owmWindowBorder border_side = OWM_getResizeBorderSide(&clicked_window, mouse_x, mouse_y);
+    owmWindowBorder border_side = getResizeBorderSide(&clicked_window, mouse_x, mouse_y);
     if (border_side != OWM_WINDOW_BORDER_NONE) {
       switch(border_side) {
         case OWM_WINDOW_BORDER_TOP:
@@ -436,9 +436,9 @@ void OWM_processWindowMouseButtonEvent(uint32_t mouse_x, uint32_t mouse_y, uint1
 
 void OWM_processWindowKeyEvent(uint16_t key_code, OWM_KeyEventType event_type) {
   if (key_code == KEY_W && event_type == OWM_EVENT_KEY_EVENT_PRESS) {
-    owmWindows_create_window();
+    createWindow();
   } else if (key_code == KEY_Q && event_type == OWM_EVENT_KEY_EVENT_PRESS) {
-    owmWindows_close_window();
+    closeWindow();
   }
 }
 

@@ -20,14 +20,14 @@ typedef struct {
   size_t count;
 } OWM_DRMGraphicsCards;
 
-void OWM_freeDRMGraphicsCards(OWM_DRMGraphicsCards* gcs) {
+void freeDRMGraphicsCards(OWM_DRMGraphicsCards* gcs) {
   for (size_t i = 0; i < gcs->count; ++i) {
     free(gcs->cards[i]);
   }
   free(gcs->cards);
 }
 
-int OWM_discoverDRMGraphicsCards(OWM_DRMGraphicsCards* out) {
+int discoverDRMGraphicsCards(OWM_DRMGraphicsCards* out) {
   DIR *d;
   struct dirent *dir;
   d = opendir("/dev/dri");
@@ -49,7 +49,7 @@ int OWM_discoverDRMGraphicsCards(OWM_DRMGraphicsCards* out) {
       capacity++;
       char **tmp_cards = realloc(out->cards, capacity * sizeof(char *));
       if (tmp_cards == NULL) {
-        OWM_freeDRMGraphicsCards(out);
+        freeDRMGraphicsCards(out);
         return 1;
       }
       out->cards = tmp_cards;
@@ -64,7 +64,7 @@ int OWM_discoverDRMGraphicsCards(OWM_DRMGraphicsCards* out) {
   return 0;
 }
 
-uint32_t get_prop_id(int fd, uint32_t obj_id, uint32_t obj_type, const char *name) {
+uint32_t getPropId(int fd, uint32_t obj_id, uint32_t obj_type, const char *name) {
   drmModeObjectProperties *props = drmModeObjectGetProperties(fd, obj_id, obj_type);
   for (uint32_t i = 0; i < props->count_props; ++i) {
     drmModePropertyRes *prop = drmModeGetProperty(fd, props->props[i]);
@@ -84,7 +84,7 @@ uint32_t get_prop_id(int fd, uint32_t obj_id, uint32_t obj_type, const char *nam
 
 int OWM_scanDRMDisplays() {
   OWM_DRMGraphicsCards gcs;
-  if (OWM_discoverDRMGraphicsCards(&gcs)) {
+  if (discoverDRMGraphicsCards(&gcs)) {
     fprintf(stderr, "Failed to located graphics cards\n");
     return 1;
   }
@@ -264,19 +264,19 @@ int OWM_scanDRMDisplays() {
       display.plane_cursor = plane_cursor;
       display.plane_overlay = plane_overlay;
 
-      display.plane_primary_properties.connector_crtc_id = get_prop_id(fd, conn->connector_id, DRM_MODE_OBJECT_CONNECTOR, "CRTC_ID");
-      display.plane_primary_properties.crtc_activate = get_prop_id(fd, crtc_id, DRM_MODE_OBJECT_CRTC, "ACTIVE");
-      display.plane_primary_properties.crtc_mode_id = get_prop_id(fd, crtc_id, DRM_MODE_OBJECT_CRTC, "MODE_ID");
-      display.plane_primary_properties.plane_fb_id = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "FB_ID");
-      display.plane_primary_properties.plane_crtc_id = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_ID");
-      display.plane_primary_properties.plane_crtc_x = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_X");
-      display.plane_primary_properties.plane_crtc_y = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_Y");
-      display.plane_primary_properties.plane_crtc_w = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_W");
-      display.plane_primary_properties.plane_crtc_h = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_H");
-      display.plane_primary_properties.plane_src_x = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_X");
-      display.plane_primary_properties.plane_src_y = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_Y");
-      display.plane_primary_properties.plane_src_w = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_W");
-      display.plane_primary_properties.plane_src_h = get_prop_id(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_H");
+      display.plane_primary_properties.connector_crtc_id = getPropId(fd, conn->connector_id, DRM_MODE_OBJECT_CONNECTOR, "CRTC_ID");
+      display.plane_primary_properties.crtc_activate = getPropId(fd, crtc_id, DRM_MODE_OBJECT_CRTC, "ACTIVE");
+      display.plane_primary_properties.crtc_mode_id = getPropId(fd, crtc_id, DRM_MODE_OBJECT_CRTC, "MODE_ID");
+      display.plane_primary_properties.plane_fb_id = getPropId(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "FB_ID");
+      display.plane_primary_properties.plane_crtc_id = getPropId(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_ID");
+      display.plane_primary_properties.plane_crtc_x = getPropId(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_X");
+      display.plane_primary_properties.plane_crtc_y = getPropId(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_Y");
+      display.plane_primary_properties.plane_crtc_w = getPropId(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_W");
+      display.plane_primary_properties.plane_crtc_h = getPropId(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "CRTC_H");
+      display.plane_primary_properties.plane_src_x = getPropId(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_X");
+      display.plane_primary_properties.plane_src_y = getPropId(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_Y");
+      display.plane_primary_properties.plane_src_w = getPropId(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_W");
+      display.plane_primary_properties.plane_src_h = getPropId(fd, plane_primary, DRM_MODE_OBJECT_PLANE, "SRC_H");
 
       OWM_DISPLAYS.displays[OWM_DISPLAYS.count] = display;
       OWM_DISPLAYS.count = OWM_DISPLAYS.count + 1;
@@ -289,7 +289,7 @@ int OWM_scanDRMDisplays() {
     drmModeFreeResources(res);
   }
 
-  OWM_freeDRMGraphicsCards(&gcs);
+  freeDRMGraphicsCards(&gcs);
   
   if (OWM_DISPLAYS.count == 0) {
     return 1;
