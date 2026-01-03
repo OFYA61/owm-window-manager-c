@@ -33,12 +33,12 @@ typedef struct {
 } OwmInputDeviceInfo;
 
 typedef struct {
-  int epoll_instance_fd;
+  struct epoll_event *epoll_events;
   size_t count;
   OwmInputDeviceInfo *device_infos;
-} OwmEventPollData;
+} OwmEPollFds;
 
-OwmEventPollData OWM_EVENT_POLL_DATAS = { 0 };
+OwmEPollFds OWM_E_POLL_FDS = { 0 };
 
 int owmEvents_setup() {
   const owmKeyboards *keyboards = owmKeyboards_get();
@@ -46,22 +46,19 @@ int owmEvents_setup() {
   size_t size = 1 +                 // 1 for render display
                 keyboards->count +  // Keyboard input devices
                 mice->count;        // Mouse input devices
-  int epoll_instance_fd = epoll_create1(0);
-  struct epoll_event ev;
-  
-  OWM_EVENT_POLL_DATAS.epoll_instance_fd = epoll_instance_fd;
-  OWM_EVENT_POLL_DATAS.device_infos = malloc(sizeof(OwmInputDeviceInfo) * size);
-  OWM_EVENT_POLL_DATAS.count = size;
+  OWM_E_POLL_FDS.epoll_events = malloc(sizeof(struct epoll_event) * size);
+  OWM_E_POLL_FDS.device_infos = malloc(sizeof(OwmInputDeviceInfo) * size);
+  OWM_E_POLL_FDS.count = size;
 
   // Register render display
   size_t index = 0;
   int drm_fd = owmRenderDisplay_get_fd_card();
-  OWM_EVENT_POLL_DATAS.device_infos[index].fd = drm_fd;
-  OWM_EVENT_POLL_DATAS.device_infos[index].type = OWM_INPUT_DEVICE_TYPE_DRM;
-  ev.data.fd = drm_fd;
-  ev.data.ptr = &OWM_EVENT_POLL_DATAS.device_infos[index];
-  ev.events = EPOLLIN;
-  if (epoll_ctl(epoll_instance_fd, EPOLL_CTL_ADD, drm_fd, &ev)) {
+  OWM_E_POLL_FDS.device_infos[index].fd = drm_fd;
+  OWM_E_POLL_FDS.device_infos[index].type = OWM_INPUT_DEVICE_TYPE_DRM;
+  OWM_E_POLL_FDS.epoll_events[index].data.fd = drm_fd;
+  OWM_E_POLL_FDS.epoll_events[index].data.ptr = &OWM_E_POLL_FDS.device_infos[index];
+  OWM_E_POLL_FDS.epoll_events[index].events = EPOLLIN;
+  if (epoll_ctl(epoll_create1(0), EPOLL_CTL_ADD, drm_fd, &OWM_E_POLL_FDS.epoll_events[index])) {
     perror("epoll_ctl: register DMR");
     goto owmEvents_setup_failure;
   }
@@ -72,12 +69,12 @@ int owmEvents_setup() {
   while (kbds_to_process > 0) {
     int kbd_fd = keyboards->fds[kbds_to_process - 1];
 
-    OWM_EVENT_POLL_DATAS.device_infos[index].fd = kbd_fd;
-    OWM_EVENT_POLL_DATAS.device_infos[index].type = OWM_INPUT_DEVICE_TYPE_KBD;
-    ev.data.fd = kbd_fd;
-    ev.data.ptr = &OWM_EVENT_POLL_DATAS.device_infos[index];
-    ev.events = EPOLLIN;
-    if (epoll_ctl(epoll_instance_fd, EPOLL_CTL_ADD, kbd_fd, &ev)) {
+    OWM_E_POLL_FDS.device_infos[index].fd = kbd_fd;
+    OWM_E_POLL_FDS.device_infos[index].type = OWM_INPUT_DEVICE_TYPE_KBD;
+    OWM_E_POLL_FDS.epoll_events[index].data.fd = kbd_fd;
+    OWM_E_POLL_FDS.epoll_events[index].data.ptr = &OWM_E_POLL_FDS.device_infos[index];
+    OWM_E_POLL_FDS.epoll_events[index].events = EPOLLIN;
+    if (epoll_ctl(epoll_create1(0), EPOLL_CTL_ADD, kbd_fd, &OWM_E_POLL_FDS.epoll_events[index])) {
       perror("epoll_ctl: register DMR");
       goto owmEvents_setup_failure;
     }
@@ -89,25 +86,21 @@ int owmEvents_setup() {
   // Register mice
   size_t mice_to_process = mice->count;
   while(mice_to_process > 0) {
-    int mouse_fd = mice->fds[mice_to_process - 1];
+    int fd = mice->fds[mice_to_process - 1];
 
-    OWM_EVENT_POLL_DATAS.device_infos[index].fd = mouse_fd;
-    OWM_EVENT_POLL_DATAS.device_infos[index].type = OWM_INPUT_DEVICE_TYPE_MOUSE;
-    ev.data.fd = mouse_fd;
-    ev.data.ptr = &OWM_EVENT_POLL_DATAS.device_infos[index];
-    ev.events = EPOLLIN;
-    if (epoll_ctl(epoll_instance_fd, EPOLL_CTL_ADD, mouse_fd, &ev)) {
-      perror("epoll_ctl: register DMR");
-      goto owmEvents_setup_failure;
-    }
-
+    OWM_E_POLL_FDS.device_infos[index].fd = fd;
+    OWM_E_POLL_FDS.device_infos[index].type = OWM_INPUT_DEVICE_TYPE_KBD;
+    OWM_E_POLL_FDS.epoll_events[index].data.fd = fd;
+    OWM_E_POLL_FDS.epoll_events[index].data.ptr = &OWM_E_POLL_FDS.device_infos[index];
+    OWM_E_POLL_FDS.epoll_events[index].events = EPOLLIN;
     index++;
     --mice_to_process;
   }
   return 0;
 
 owmEvents_setup_failure:
-  free(OWM_EVENT_POLL_DATAS.device_infos);
+  free(OWM_E_POLL_FDS.epoll_events);
+  free(OWM_E_POLL_FDS.device_infos);
   return 1;
 }
 
@@ -140,35 +133,21 @@ owmEventKeyEventType owmEvents_get_key_event_type(uint16_t key_code, bool presse
   }
 }
 
-#define MAX_EVENTS_TO_PROCESS 16
-struct epoll_event events_to_process[MAX_EVENTS_TO_PROCESS];
-
 void owmEvents_poll() {
   int timeout = owmRenderContext_is_next_frame_buffer_free() ? 10 : -1;
+  int num_events = poll(OWM_EVENT_POLL_FDS.pollfds, OWM_EVENT_POLL_FDS.count, timeout);
+  if (num_events == 0) {
+    return;
+  }
 
-  int num_ready = epoll_wait(
-    OWM_EVENT_POLL_DATAS.epoll_instance_fd,
-    events_to_process,
-    MAX_EVENTS_TO_PROCESS,
-    timeout
-  );
+  struct pollfd *pfds = OWM_EVENT_POLL_FDS.pollfds;
 
-  for (int i = 0; i < num_ready; ++i) {
-    OwmInputDeviceInfo *device_info = events_to_process[i].data.ptr;
-    int fd = device_info->fd;
-    int type = device_info->type;
+  // TODO: check for `revents` bits `POLLERR` `POLLHUP` `POLLNVAL` for input hot-unplug or DRM fd errors
 
-    if (type == OWM_INPUT_DEVICE_TYPE_DRM) {
-      drmEventContext ev = {
-        .version = DRM_EVENT_CONTEXT_VERSION,
-        .page_flip_handler = owmRenderContext_page_flip_handler
-      };
-      drmHandleEvent(fd, &ev);
-    }
-
-    if (type == OWM_INPUT_DEVICE_TYPE_KBD) {
+  for (size_t kbd_poll_fd_idx = OWM_EVENT_POLL_FDS.input_kbd_start_idx; kbd_poll_fd_idx <= OWM_EVENT_POLL_FDS.input_kbd_end_idx; kbd_poll_fd_idx++) {
+    if (pfds[kbd_poll_fd_idx].revents & POLLIN) {
       struct input_event ev;
-      while (read(fd, &ev, sizeof(ev)) == sizeof(ev)) {
+      while (read(pfds[kbd_poll_fd_idx].fd, &ev, sizeof(ev)) == sizeof(ev)) {
         if (ev.type == EV_KEY) {
           owmEventKeyEventType event_type = owmEvents_get_key_event_type(ev.code, ev.value ? true : false);
           if (owmEvents_keyboard_key_press_callback != NULL) {
@@ -177,12 +156,14 @@ void owmEvents_poll() {
         }
       }
     }
+  }
 
-    if (type == OWM_INPUT_DEVICE_TYPE_MOUSE) {
+  for (size_t mice_poll_fd_idx = OWM_EVENT_POLL_FDS.input_mice_start_idx; mice_poll_fd_idx <= OWM_EVENT_POLL_FDS.input_mice_end_idx; mice_poll_fd_idx++) {
+    if (pfds[mice_poll_fd_idx].revents & POLLIN) {
       struct input_event ev;
       static int rel_x = 0;
       static int rel_y = 0;
-      while (read(fd, &ev, sizeof(ev)) == sizeof(ev)) {
+      while (read(pfds[mice_poll_fd_idx].fd, &ev, sizeof(ev)) == sizeof(ev)) {
         if (ev.type == EV_REL) {
           if (ev.code == REL_X) {
             rel_x += ev.value;
@@ -206,8 +187,17 @@ void owmEvents_poll() {
       }
     }
   }
+
+  if (pfds[OWM_EVENT_POLL_FDS.display_idx].revents & POLLIN) {
+    drmEventContext ev = {
+      .version = DRM_EVENT_CONTEXT_VERSION,
+      .page_flip_handler = owmRenderContext_page_flip_handler
+    };
+    drmHandleEvent(pfds[OWM_EVENT_POLL_FDS.display_idx].fd, &ev);
+  }
 }
 
 void owmEvents_cleanup() {
-  free(OWM_EVENT_POLL_DATAS.device_infos);
+  free(OWM_E_POLL_FDS.epoll_events);
+  free(OWM_E_POLL_FDS.device_infos);
 }

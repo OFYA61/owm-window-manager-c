@@ -5,16 +5,6 @@
 #include <stdint.h>
 #include <sys/poll.h>
 
-typedef struct {
-  struct pollfd *pollfds;
-  size_t count;
-  size_t display_idx;
-  size_t input_kbd_start_idx;
-  size_t input_kbd_end_idx;
-  size_t input_mice_start_idx;
-  size_t input_mice_end_idx;
-} owmEventPollFds;
-
 typedef enum {
   OWM_EVENT_KEY_EVENT_PRESS,
   OWM_EVENT_KEY_EVENT_RELEASE,
@@ -23,7 +13,7 @@ typedef enum {
 
 /// Setups up global `OWM_EVENT_POLL_FDS`.
 /// Requires the input devices `OWM_KEYBOARDS` and the `OWM_RENDER_DISPLAY` to be set before calling
-void owmEvents_setup();
+int owmEvents_setup();
 /// Poll for events
 void owmEvents_poll();
 /// Cleanup input device objects

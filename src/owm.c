@@ -1,7 +1,5 @@
 #include "owm.h"
 
-#include <stdio.h>
-
 #include "display.h"
 #include "events.h"
 #include "input.h"
@@ -10,23 +8,31 @@
 
 int owm_init() {
   if (owmInput_setup()) {
-    fprintf(stderr, "Failed to find a keyboard\n");
-    return 1;
+    goto owm_init_failure_input_setup;
   }
 
   if (owmDisplays_scan()) {
-    perror("owmDisplay_scan");
-    return 1;
+    goto owm_init_failure_display_scan;
   }
 
   if (owmRenderContext_init()) {
-    owmDisplays_close();
-    return 1;
+    goto owm_init_failure_render_context_init;
   }
 
-  owmEvents_setup();
+  if (owmEvents_setup()) {
+    goto owm_init_failure_events_setup;
+  }
 
   return 0;
+
+owm_init_failure_events_setup:
+  owmRenderContext_close();
+owm_init_failure_render_context_init:
+  owmDisplays_close();
+owm_init_failure_display_scan:
+  owmInput_close();
+owm_init_failure_input_setup:
+  return 1;
 }
 
 void owm_cleanup() {
