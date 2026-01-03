@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "../backend/backend.h"
+#include "backend/backend.h"
 #include "event.h"
 
 void OWM_renderWindows(OWM_FrameBuffer* frameBuffer);
