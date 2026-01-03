@@ -1,44 +1,22 @@
 #include "owm.h"
 
-#include "display.h"
-#include "events.h"
-#include "evdev.h"
-#include "render.h"
+#include "backend/backend.h"
 #include "window.h"
 
-int OWM_init() {
-  if (OWM_setupEvDev()) {
-    goto owm_init_failure_input_setup;
-  }
+OWM_Context backend = { 0 };
 
-  if (OWM_scanDRMDisplays()) {
-    goto owm_init_failure_display_scan;
+int OWM_init(OWM_Context_type context_type) {
+  if (OWM_initBackend(context_type, &backend)) {
+    return 1;
   }
-
-  if (OWM_drmInitRenderContext()) {
-    goto owm_init_failure_render_context_init;
-  }
-
-  if (OWM_setupEvents()) {
-    goto owm_init_failure_events_setup;
-  }
-
   return 0;
-
-owm_init_failure_events_setup:
-  OWM_drmCloseRenderContext();
-owm_init_failure_render_context_init:
-  OWM_closeDRMDisplays();
-owm_init_failure_display_scan:
-  OWM_closeEvDev();
-owm_init_failure_input_setup:
-  return 1;
 }
 
 void OWM_shutdown() {
   OWM_cleanupWindows();
-  OWM_cleanupEvents();
-  OWM_closeEvDev();
-  OWM_drmCloseRenderContext();
-  OWM_closeDRMDisplays();
+  OWM_shutdownBackend(&backend);
+}
+
+inline OWM_Context* OWM_getActiveBackend() {
+  return &backend;
 }

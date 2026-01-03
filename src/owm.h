@@ -1,6 +1,10 @@
 #pragma once
 
-/// Initialize Ofya Window Manager
-int OWM_init();
-/// Cleanup objects created for Ofya Window Manager
+#include "backend/backend.h"
+
+/// Initialize window manager
+int OWM_init(OWM_Context_type context_type);
+/// Cleanup objects created for the window manager
 void OWM_shutdown();
+
+OWM_Context* OWM_getActiveBackend();

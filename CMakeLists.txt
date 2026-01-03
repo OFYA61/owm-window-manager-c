@@ -12,7 +12,7 @@ pkg_check_modules(LIBDRM REQUIRED libdrm)
 include_directories(${LIBDRM_INCLUDE_DIRS})
 
 # Add the executable
-file(GLOB SRC_FILES src/*.c)
+file(GLOB_RECURSE SRC_FILES src/*.c)
 add_executable(${PROJECT_NAME} ${SRC_FILES})
 
 # Link against libdrm
