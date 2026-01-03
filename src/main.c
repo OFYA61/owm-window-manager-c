@@ -13,18 +13,18 @@ uint32_t mouse_pos_y = 0;
 uint32_t display_width = 0;
 uint32_t display_height = 0;
 
-void keyboard_key_press_callback(uint16_t key_code, OWM_KeyEventType event_type) {
+void keyboardKeyPressCallback(uint16_t key_code, OWM_KeyEventType event_type) {
   if (event_type == OWM_EVENT_KEY_EVENT_PRESS && key_code == KEY_ESC) {
     running = false;
   }
   OWM_processWindowKeyEvent(key_code, event_type);
 }
 
-void mouse_key_press_callback(uint16_t key_code, OWM_KeyEventType event_type) {
+void mouseKeyPressCallback(uint16_t key_code, OWM_KeyEventType event_type) {
   OWM_processWindowMouseButtonEvent(mouse_pos_x, mouse_pos_y, key_code, event_type);
 }
 
-void mouse_move_callback(int rel_x, int rel_y) {
+void mouseMoveCallback(int rel_x, int rel_y) {
   if (rel_x < 0 && (uint32_t) abs(rel_x) > mouse_pos_x) {
     mouse_pos_x = 0;
     rel_x = 0;
@@ -60,9 +60,9 @@ int main() {
   display_width = context->getDisplayWidth();
   display_height = context->getDisplayHeight();
 
-  OWM_setKeyboardKeyPressCallback(keyboard_key_press_callback);
-  OWM_setMouseKeyPressCallback(mouse_key_press_callback);
-  OWM_setMouseMoveCallback(mouse_move_callback);
+  OWM_setKeyboardKeyPressCallback(keyboardKeyPressCallback);
+  OWM_setMouseKeyPressCallback(mouseKeyPressCallback);
+  OWM_setMouseMoveCallback(mouseMoveCallback);
 
   while (running) {
     context->dispatch();
