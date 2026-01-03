@@ -1,8 +1,9 @@
 #include "event.h"
 
-#include <linux/input-event-codes.h>
 #include <stdint.h>
 #include <string.h>
+
+#include "input.h"
 
 #define BITSIZE(bits) ((bits + 7) / 8)
 
@@ -27,11 +28,11 @@ OWM_KeyEventType getKeyEventType(uint16_t key_code, bool pressed) {
   }
 }
 
-void (*owm_keyboard_key_press_callback)(uint16_t key_code, OWM_KeyEventType event_type) = NULL;
-void (*owm_mouse_key_press_callback)(uint16_t key_code, OWM_KeyEventType event_type) = NULL;
+void (*owm_keyboard_key_press_callback)(OWM_KeyCode key_code, OWM_KeyEventType event_type) = NULL;
+void (*owm_mouse_key_press_callback)(OWM_KeyCode key_code, OWM_KeyEventType event_type) = NULL;
 void (*owm_mouse_move_callback)(int rel_x, int rel_y) = NULL;
 
-void OWM_setKeyboardKeyPressCallback(void (*callback)(uint16_t key_code, OWM_KeyEventType event_type)) {
+void OWM_setKeyboardKeyPressCallback(void (*callback)(OWM_KeyCode key_code, OWM_KeyEventType event_type)) {
   owm_keyboard_key_press_callback = callback;
 }
 
@@ -39,7 +40,7 @@ void OWM_submitKeyboardKeyPressCallback(uint16_t key_code, bool pressed) {
   owm_keyboard_key_press_callback(key_code, getKeyEventType(key_code, pressed));
 }
 
-void OWM_setMouseKeyPressCallback(void (*callback)(uint16_t key_code, OWM_KeyEventType event_type)) {
+void OWM_setMouseKeyPressCallback(void (*callback)(OWM_KeyCode key_code, OWM_KeyEventType event_type)) {
   owm_mouse_key_press_callback = callback;
 }
 

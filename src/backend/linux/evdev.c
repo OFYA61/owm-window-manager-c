@@ -9,11 +9,11 @@
 #include <string.h>
 #include <sys/epoll.h>
 #include <sys/ioctl.h>
-#include <unistd.h>
 #include <linux/input.h>
 #include <xf86drm.h>
 
 #include "core/event.h"
+#include "core/input.h"
 #include "render.h"
 
 #define EV_BITSIZE(bits) ((bits + 7) / 8)
@@ -272,6 +272,10 @@ void OWM_closeEvDev() {
   free(OWM_EVENT_POLL_DATAS.device_infos);
 }
 
+OWM_KeyCode translateKeyCode(uint16_t key_code) {
+  return (OWM_KeyCode) key_code;
+}
+
 #define MAX_EVENTS_TO_PROCESS 16
 struct epoll_event events_to_process[MAX_EVENTS_TO_PROCESS];
 void OWM_pollEvDevEvents() {
@@ -301,7 +305,7 @@ void OWM_pollEvDevEvents() {
       struct input_event ev;
       while (read(fd, &ev, sizeof(ev)) == sizeof(ev)) {
         if (ev.type == EV_KEY) {
-          OWM_submitKeyboardKeyPressCallback(ev.code, ev.value ? true : false);
+          OWM_submitKeyboardKeyPressCallback(translateKeyCode(ev.code), ev.value ? true : false);
         }
       }
     }
@@ -320,7 +324,7 @@ void OWM_pollEvDevEvents() {
             // TODO: handle scroll wheel
           }
         } else if (ev.type == EV_KEY) {
-          OWM_submitMouseKeyPressCallback(ev.code, ev.value ? true : false);
+          OWM_submitMouseKeyPressCallback(translateKeyCode(ev.code), ev.value ? true : false);
         } else if (ev.type == EV_SYN && ev.code == SYN_REPORT) { // The mouse "packet" is complete. Dispatch total movement
           OWM_submitMouseMoveCallback(rel_x, rel_y);
           rel_x = 0;

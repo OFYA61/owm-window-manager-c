@@ -1,9 +1,9 @@
-#include <linux/input-event-codes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
 #include "backend/backend.h"
+#include "core/input.h"
 #include "owm.h"
 #include "core/window.h"
 
@@ -13,14 +13,14 @@ uint32_t mouse_pos_y = 0;
 uint32_t display_width = 0;
 uint32_t display_height = 0;
 
-void keyboardKeyPressCallback(uint16_t key_code, OWM_KeyEventType event_type) {
-  if (event_type == OWM_EVENT_KEY_EVENT_PRESS && key_code == KEY_ESC) {
+void keyboardKeyPressCallback(OWM_KeyCode key_code, OWM_KeyEventType event_type) {
+  if (event_type == OWM_EVENT_KEY_EVENT_PRESS && key_code == OWM_KEY_ESC) {
     running = false;
   }
   OWM_processWindowKeyEvent(key_code, event_type);
 }
 
-void mouseKeyPressCallback(uint16_t key_code, OWM_KeyEventType event_type) {
+void mouseKeyPressCallback(OWM_KeyCode key_code, OWM_KeyEventType event_type) {
   OWM_processWindowMouseButtonEvent(mouse_pos_x, mouse_pos_y, key_code, event_type);
 }
 

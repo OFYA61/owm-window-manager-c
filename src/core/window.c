@@ -1,12 +1,13 @@
 #include "window.h"
-#include "backend/backend.h"
-#include "event.h"
 
-#include <linux/input-event-codes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "backend/backend.h"
+#include "event.h"
+#include "input.h"
 
 #define OWM_FOCUSED_WINDOW_BORDER_COLOR 0x0000FFFF
 #define OWM_BORDER_SIZE 2
@@ -354,7 +355,7 @@ void OWM_processWindowMouseEvent(uint32_t new_mouse_x, uint32_t new_mouse_y, int
 }
 
 void OWM_processWindowMouseButtonEvent(uint32_t mouse_x, uint32_t mouse_y, uint16_t key_code, OWM_KeyEventType event_type) {
-  if (key_code != BTN_LEFT) { // For now only handle left mouse button events
+  if (key_code != OWM_BTN_LEFT) { // For now only handle left mouse button events
     return;
   }
 
@@ -435,9 +436,9 @@ void OWM_processWindowMouseButtonEvent(uint32_t mouse_x, uint32_t mouse_y, uint1
 }
 
 void OWM_processWindowKeyEvent(uint16_t key_code, OWM_KeyEventType event_type) {
-  if (key_code == KEY_W && event_type == OWM_EVENT_KEY_EVENT_PRESS) {
+  if (key_code == OWM_KEY_W && event_type == OWM_EVENT_KEY_EVENT_PRESS) {
     createWindow();
-  } else if (key_code == KEY_Q && event_type == OWM_EVENT_KEY_EVENT_PRESS) {
+  } else if (key_code == OWM_KEY_Q && event_type == OWM_EVENT_KEY_EVENT_PRESS) {
     closeWindow();
   }
 }
