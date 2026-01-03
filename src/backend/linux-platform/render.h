@@ -8,7 +8,7 @@
 /// Initializes the render context
 int OWM_drmInitRenderContext();
 /// Cleans up objects related to the render context
-void OWM_drmCloseRenderContext();
+void OWM_drmShutdownRenderContext();
 
 /// Submit swap request
 int OWM_drmFlipRenderContext();

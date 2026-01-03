@@ -56,7 +56,7 @@ int main() {
     return 1;
   }
 
-  OWM_Context* context = OWM_getContext();
+  OWM_Backend* context = OWM_getContext();
   display_width = context->getDisplayWidth();
   display_height = context->getDisplayHeight();
 
@@ -65,7 +65,7 @@ int main() {
   OWM_setMouseMoveCallback(mouse_move_callback);
 
   while (running) {
-    OWM_pollEvents();
+    context->dispatch();
 
     OWM_FrameBuffer *frame_buffer;
     if((frame_buffer = context->aquireFreeFrameBuffer()) != NULL) {

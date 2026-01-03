@@ -3,9 +3,9 @@
 #include "backend/backend.h"
 #include "window.h"
 
-OWM_Context backend = { 0 };
+OWM_Backend backend = { 0 };
 
-int OWM_init(OWM_Context_type context_type) {
+int OWM_init(OWM_BackendType context_type) {
   if (OWM_initBackend(context_type, &backend)) {
     return 1;
   }
@@ -17,6 +17,6 @@ void OWM_shutdown() {
   OWM_shutdownBackend(&backend);
 }
 
-inline OWM_Context* OWM_getContext() {
+inline OWM_Backend* OWM_getContext() {
   return &backend;
 }

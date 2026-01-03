@@ -282,7 +282,7 @@ int OWM_drmInitRenderContext() {
   return 0;
 }
 
-void OWM_drmCloseRenderContext() {
+void OWM_drmShutdownRenderContext() {
   OWM_destroyFrameBufferList(OWM_DRM_RENDER_CONTEXT.frame_buffers, FB_COUNT);
 }
 
