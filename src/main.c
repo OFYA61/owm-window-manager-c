@@ -5,7 +5,6 @@
 
 #include "backend/backend.h"
 #include "owm.h"
-#include "events.h"
 #include "window.h"
 
 bool running = true;
@@ -57,19 +56,19 @@ int main() {
     return 1;
   }
 
-  OWM_Context* backend = OWM_getActiveBackend();
-  display_width = backend->getDisplayWidth();
-  display_height = backend->getDisplayHeight();
+  OWM_Context* context = OWM_getContext();
+  display_width = context->getDisplayWidth();
+  display_height = context->getDisplayHeight();
 
   OWM_setKeyboardKeyPressCallback(keyboard_key_press_callback);
   OWM_setMouseKeyPressCallback(mouse_key_press_callback);
   OWM_setMouseMoveCallback(mouse_move_callback);
 
-  OWM_FrameBuffer *frame_buffer;
   while (running) {
     OWM_pollEvents();
 
-    if((frame_buffer = backend->aquireFreeFrameBuffer()) != NULL) {
+    OWM_FrameBuffer *frame_buffer;
+    if((frame_buffer = context->aquireFreeFrameBuffer()) != NULL) {
       // Render
       // Clear screen
       uint32_t clear_color = 0x00000000;
@@ -89,7 +88,7 @@ int main() {
       pixel = frame_buffer->pixels;
       pixel[mouse_pos_y * frame_buffer->stride + mouse_pos_x] = cursor_color;
 
-      if (backend->swapBuffers() != 0) {
+      if (context->swapBuffers() != 0) {
         fprintf(stderr, "Failed to submit swap frame buffer request\n");
       }
     }

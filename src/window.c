@@ -1,6 +1,6 @@
 #include "window.h"
 #include "backend/backend.h"
-#include "events.h"
+#include "backend/linux-platform/events.h"
 
 #include <linux/input-event-codes.h>
 #include <stdint.h>

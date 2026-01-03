@@ -8,7 +8,7 @@
 #include <xf86drmMode.h>
 
 #include "display.h"
-#include "backend/backend.h"
+#include "../backend.h"
 
 #define FB_COUNT 3
 

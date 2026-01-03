@@ -17,6 +17,6 @@ void OWM_shutdown() {
   OWM_shutdownBackend(&backend);
 }
 
-inline OWM_Context* OWM_getActiveBackend() {
+inline OWM_Context* OWM_getContext() {
   return &backend;
 }

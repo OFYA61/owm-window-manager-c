@@ -2,10 +2,10 @@
 
 #include <stdio.h>
 
-#include "../display.h"
-#include "../events.h"
-#include "../evdev.h"
-#include "../render.h"
+#include "linux-platform/display.h"
+#include "linux-platform/evdev.h"
+#include "linux-platform/render.h"
+#include "linux-platform/events.h"
 
 int OWM_initBackend(OWM_Context_type context_type, OWM_Context *out_backend) {
   if (context_type == OWM_BACKEND_TYPE_LINUX) {

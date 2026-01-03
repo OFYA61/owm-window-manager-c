@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #include "backend/backend.h"
-#include "events.h"
+#include "backend/linux-platform/events.h"
 
 void OWM_renderWindows(OWM_FrameBuffer* frameBuffer);
 void OWM_processWindowMouseEvent(uint32_t new_mouse_x, uint32_t new_mouse_y, int32_t mouse_delta_x, int32_t mouse_delta_y);
