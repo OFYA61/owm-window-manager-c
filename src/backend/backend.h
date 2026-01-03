@@ -1,5 +1,14 @@
 #pragma once
 
+#include <stdint.h>
+
+typedef struct {
+  uint32_t *pixels;
+  uint32_t widht;
+  uint32_t height;
+  uint32_t stride;
+} OWM_FrameBuffer;
+
 typedef struct {
   // Initializes the backend
   int (*init)();
@@ -7,7 +16,7 @@ typedef struct {
   void (*shutdown)();
 
   // Gets an available frame buffer to render on, if not returns `NULL`
-  void* (*aquireFrameBuffer)();
+  OWM_FrameBuffer* (*aquireFrameBuffer)();
   // Swaps frame buffers
   void* (*swap)();
 } OWM_Backend;

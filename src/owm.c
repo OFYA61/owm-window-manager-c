@@ -2,7 +2,7 @@
 
 #include "display.h"
 #include "events.h"
-#include "input.h"
+#include "evdev.h"
 #include "render.h"
 #include "window.h"
 

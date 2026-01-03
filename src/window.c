@@ -390,35 +390,27 @@ void OWM_processWindowMouseButtonEvent(uint32_t mouse_x, uint32_t mouse_y, uint1
     if (border_side != OWM_WINDOW_BORDER_NONE) {
       switch(border_side) {
         case OWM_WINDOW_BORDER_TOP:
-          printf("TOP\n");
           clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_TOP_BORDER;
           break;
         case OWM_WINDOW_BORDER_TOP_RIGHT:
-          printf("TOP RIGHT\n");
           clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_TOP_RIGHT_BORDER;
           break;
         case OWM_WINDOW_BORDER_RIGHT:
-          printf("RIGHT\n");
           clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_RIGHT_BORDER;
           break;
         case OWM_WINDOW_BORDER_BOTTOM_RIGHT:
-          printf("BOTTOM RIGHT\n");
           clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_BOTTOM_RIGHT_BORDER;
           break;
         case OWM_WINDOW_BORDER_BOTTOM:
-          printf("BOTTOM\n");
           clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_BOTTOM_BORDER;
           break;
         case OWM_WINDOW_BORDER_BOTTOM_LEFT:
-          printf("BOTTOM LEFT\n");
           clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_BOTTOM_LEFT_BORDER;
           break;
         case OWM_WINDOW_BORDER_LEFT:
-          printf("LEFT\n");
           clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_LEFT_BORDER;
           break;
         case OWM_WINDOW_BORDER_TOP_LEFT:
-          printf("TOP LEFT\n");
           clicked_window.mouse_action = OWM_WINDOW_MOUSE_ACTION_RESIZE_TOP_LEFT_BORDER;
           break;
         default:
@@ -442,7 +434,7 @@ void OWM_processWindowMouseButtonEvent(uint32_t mouse_x, uint32_t mouse_y, uint1
   }
 }
 
-void OWM_processKeyEvent(uint16_t key_code, OWM_KeyEventType event_type) {
+void OWM_processWindowKeyEvent(uint16_t key_code, OWM_KeyEventType event_type) {
   if (key_code == KEY_W && event_type == OWM_EVENT_KEY_EVENT_PRESS) {
     owmWindows_create_window();
   } else if (key_code == KEY_Q && event_type == OWM_EVENT_KEY_EVENT_PRESS) {

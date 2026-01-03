@@ -16,7 +16,7 @@ void keyboard_key_press_callback(uint16_t key_code, OWM_KeyEventType event_type)
   if (event_type == OWM_EVENT_KEY_EVENT_PRESS && key_code == KEY_ESC) {
     running = false;
   }
-  OWM_processKeyEvent(key_code, event_type);
+  OWM_processWindowKeyEvent(key_code, event_type);
 }
 
 void mouse_key_press_callback(uint16_t key_code, OWM_KeyEventType event_type) {

@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <xf86drm.h>
 
-#include "input.h"
+#include "evdev.h"
 #include "render.h"
 
 #define BITSIZE(bits) ((bits + 7) / 8)
