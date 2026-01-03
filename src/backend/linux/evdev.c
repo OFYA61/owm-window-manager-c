@@ -13,7 +13,7 @@
 #include <linux/input.h>
 #include <xf86drm.h>
 
-#include "events.h"
+#include "../../core/event.h"
 #include "render.h"
 
 #define EV_BITSIZE(bits) ((bits + 7) / 8)

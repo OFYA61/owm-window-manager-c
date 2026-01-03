@@ -1,7 +1,7 @@
 #include "owm.h"
 
 #include "backend/backend.h"
-#include "window.h"
+#include "core/window.h"
 
 OWM_Backend backend = { 0 };
 

@@ -1,9 +1,8 @@
-#include "events.h"
+#include "event.h"
 
 #include <linux/input-event-codes.h>
 #include <stdint.h>
-
-#include "evdev.h"
+#include <string.h>
 
 #define BITSIZE(bits) ((bits + 7) / 8)
 

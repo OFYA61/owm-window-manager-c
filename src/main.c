@@ -5,7 +5,7 @@
 
 #include "backend/backend.h"
 #include "owm.h"
-#include "window.h"
+#include "core/window.h"
 
 bool running = true;
 uint32_t mouse_pos_x = 0;
