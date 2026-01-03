@@ -2,7 +2,6 @@
 
 #include <dirent.h>
 #include <fcntl.h>
-#include <linux/input-event-codes.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -11,13 +10,12 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <linux/input.h>
-#include <linux/kd.h>
 
 #define EV_BITSIZE(bits) ((bits + 7) / 8)
 #define test_bit(bit, array) ((array[(bit) / 8] >> ((bit) % 8)) & 1)
 
-owmKeyboards OWM_KEYBOARDS = { NULL, 0 };
-owmMice OWM_MICE = { NULL, 0 };
+OWM_EvDevKeyboards OWM_KEYBOARDS = { NULL, 0 };
+OWM_EvDevMice OWM_MICE = { NULL, 0 };
 
 bool is_keyboard(uint8_t *ev_bits, uint8_t *key_bits) {
   if (!test_bit(EV_KEY, ev_bits)) { // Check for key capability
@@ -42,7 +40,7 @@ bool is_mouse(uint8_t *ev_bits, uint8_t *key_bits) {
   return false;
 }
 
-int owmInput_setup() {
+int OWM_setupEvDev() {
   DIR* dir = opendir("/dev/input");
   if (!dir) {
     fprintf(stderr, "Failed to open directory '/dev/input'\n");
@@ -90,7 +88,7 @@ int owmInput_setup() {
         int *tmp_kbd_fds = realloc(kbd_fds, sizeof(int) * kbd_fds_capacity);
         if (tmp_kbd_fds == NULL) {
           fprintf(stderr, "Failed to reallocate `kbd_fds`\n");
-          return 1;
+          goto OWM_setupEvDev_failure;
         }
         kbd_fds = tmp_kbd_fds;
       }
@@ -103,7 +101,7 @@ int owmInput_setup() {
         int *tmp_mice_fds = realloc(mice_fds, sizeof(int) * mice_fds_capacity);
         if (tmp_mice_fds == NULL) {
           fprintf(stderr, "Failed to reallocate `mice_fds`\n");
-          return 1;
+          goto OWM_setupEvDev_failure;
         }
         mice_fds = tmp_mice_fds;
       }
@@ -126,9 +124,21 @@ int owmInput_setup() {
 
   closedir(dir);
   return 0;
+
+OWM_setupEvDev_failure:
+  for (int i = 0; i < kbd_fds_capacity; ++i) {
+    close(kbd_fds[i]);
+  }
+  for (int i = 0; i < mice_fds_capacity; ++i) {
+    close(mice_fds[i]);
+  }
+  free(kbd_fds);
+  free(mice_fds);
+  closedir(dir);
+  return 1;
 }
 
-void owmInput_close() {
+void OWM_closeEvDev() {
   for (size_t kbd_idx = 0; kbd_idx < OWM_KEYBOARDS.count; ++kbd_idx) {
     int kbd_fd = OWM_KEYBOARDS.fds[kbd_idx];
     ioctl(kbd_fd, EVIOCGRAB, 0); // Release control of keyboard, even if we didn't grab it just in case
@@ -144,10 +154,10 @@ void owmInput_close() {
   free(OWM_MICE.fds);
 }
 
-inline const owmKeyboards* owmKeyboards_get() {
+inline const OWM_EvDevKeyboards* OWM_getEvDevKeyboards() {
   return &OWM_KEYBOARDS;
 }
 
-inline const owmMice* owmMice_get() {
+inline const OWM_EvDevMice* OWM_getEvDevMice() {
   return &OWM_MICE;
 }

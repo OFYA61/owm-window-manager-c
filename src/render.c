@@ -9,16 +9,16 @@
 #include <xf86drmMode.h>
 
 typedef struct {
-  owmDisplay* display;
+  OWM_DRMDisplay* display;
   uint32_t property_blob_id;
   size_t selected_mode_idx;
 } owmRenderDisplay;
 
 owmRenderDisplay OWM_RENDER_DISPLAY = { NULL, 0, 0 };
-owmRenderContext OWM_RENDER_CONTEXT = { 0 };
+OWM_DRMRenderContext OWM_RENDER_CONTEXT = { 0 };
 
-int owmDumbFrameBuffer_create(owmDumbFrameBuffer *out) {
-  owmDisplay* display = OWM_RENDER_DISPLAY.display;
+int OWM_createDRMDumbFrameBuffer(OWM_DRMDumbFrameBuffer *out) {
+  OWM_DRMDisplay* display = OWM_RENDER_DISPLAY.display;
   drmModeModeInfo mode = OWM_RENDER_DISPLAY.display->display_modes[OWM_RENDER_DISPLAY.selected_mode_idx];
   struct drm_mode_create_dumb create = { 0 };
   create.width = mode.hdisplay;
@@ -80,36 +80,36 @@ int owmDumbFrameBuffer_create(owmDumbFrameBuffer *out) {
   return 0;
 }
 
-void owmDumbFrameBuffer_destroy(owmDumbFrameBuffer* fb) {
-  owmDisplay* display = OWM_RENDER_DISPLAY.display;
+void OWM_destroyDRMDumbFrameBuffer(OWM_DRMDumbFrameBuffer* fb) {
+  OWM_DRMDisplay* display = OWM_RENDER_DISPLAY.display;
   struct drm_mode_destroy_dumb destroy = { 0 };
   destroy.handle = fb->handle;
   drmIoctl(display->fd_card, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy);
 }
 
-void owmFrameBuffer_destroy(owmFrameBuffer *fb) {
-  owmDumbFrameBuffer_destroy(&fb->buffer);
+void OWM_destroyFrameBuffer(OWM_DRMFrameBuffer *fb) {
+  OWM_destroyDRMDumbFrameBuffer(&fb->buffer);
 }
 
-void owmFrameBuffer_destroyList(owmFrameBuffer *fb, size_t count) {
+void OWM_destroyFrameBufferList(OWM_DRMFrameBuffer *fb, size_t count) {
   for (size_t i = 0; i < count; ++i) {
-    owmFrameBuffer_destroy(&fb[i]);
+    OWM_destroyFrameBuffer(&fb[i]);
   }
 }
 
-int owmFrameBuffer_create(owmFrameBuffer *out) {
-  if (owmDumbFrameBuffer_create(&out->buffer)) {
+int OWM_createFrameBuffer(OWM_DRMFrameBuffer *out) {
+  if (OWM_createDRMDumbFrameBuffer(&out->buffer)) {
     return 1;
   }
-  out->state = FB_FREE;
+  out->state = OWM_FB_FREE;
   return 0;
 }
 
-int owmFrameBuffer_createList(owmFrameBuffer *out, size_t count) {
+int OWM_creatFrameBufferList(OWM_DRMFrameBuffer *out, size_t count) {
   for (size_t i = 0; i < count; ++i) {
-    if (owmFrameBuffer_create(&out[i])) {
+    if (OWM_createFrameBuffer(&out[i])) {
       for (size_t j = 0; j < i; ++j) {
-        owmFrameBuffer_destroy(&out[j]);
+        OWM_destroyFrameBuffer(&out[j]);
       }
       return 1;
     }
@@ -118,14 +118,14 @@ int owmFrameBuffer_createList(owmFrameBuffer *out, size_t count) {
 }
 
 /// Queries the user to select a display from the discovered displays array
-int owmRenderContext_pick_display() {
+int OWM_pickDrmDisplay() {
   size_t n_display;
   size_t n_mode;
 
-  const owmDisplays *displays = owmDisplays_get();
+  const OWM_DRMDisplays *displays = OWM_getDRMDisplays();
   printf("Pick a display from 0-%ld\n", displays->count - 1);
   for (size_t display_idx = 0; display_idx < displays->count; ++display_idx) {
-    owmDisplay display = displays->displays[display_idx];
+    OWM_DRMDisplay display = displays->displays[display_idx];
     printf(
       "%zd: Conn %d | Enc %d | Crtc %d | Plane Primary %d | Plane Cursor %d | Plane Overlay %d\n",
       display_idx,
@@ -143,7 +143,7 @@ int owmRenderContext_pick_display() {
     fprintf(stderr, "The chose display ID %zd doesn't exist\n", n_display);
     return 1;
   }
-  owmDisplay* display = &displays->displays[n_display];
+  OWM_DRMDisplay* display = &displays->displays[n_display];
 
   printf("Pick a mode from 0-%ld\n", display->count_display_modes);
   for (size_t mode_idx = 0; mode_idx < display->count_display_modes; ++mode_idx) {
@@ -178,8 +178,8 @@ int owmRenderContext_pick_display() {
   return 0;
 }
 
-int owmRenderContext_init() {
-  if (owmRenderContext_pick_display()) {
+int OWM_drmInitRenderContext() {
+  if (OWM_pickDrmDisplay()) {
     return 1;
   }
 
@@ -190,18 +190,18 @@ int owmRenderContext_init() {
   OWM_RENDER_CONTEXT.queued_buffer_idx = 1;
   OWM_RENDER_CONTEXT.next_buffer_idx = 2;
 
-  if (owmFrameBuffer_createList(OWM_RENDER_CONTEXT.frame_buffers, FB_COUNT)) {
+  if (OWM_creatFrameBufferList(OWM_RENDER_CONTEXT.frame_buffers, FB_COUNT)) {
     fprintf(stderr, "Failed to create render context for the chosen display: Failed to create frame buffers.\n");
     return 1;
   }
 
-  OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.displayed_buffer_idx].state = FB_DISPLAYED;
+  OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.displayed_buffer_idx].state = OWM_FB_DISPLAYED;
 
   // Initial atomic request to setup rendering
   drmModeAtomicReq *atomicReq = drmModeAtomicAlloc();
 
-  owmPrimaryPlaneProperties* plane_props = &OWM_RENDER_DISPLAY.display->plane_primary_properties;
-  owmDisplay *render_display = OWM_RENDER_DISPLAY.display;
+  OWM_DRMPrimaryPlaneProperties* plane_props = &OWM_RENDER_DISPLAY.display->plane_primary_properties;
+  OWM_DRMDisplay *render_display = OWM_RENDER_DISPLAY.display;
   drmModeModeInfo* mode = &render_display->display_modes[OWM_RENDER_DISPLAY.selected_mode_idx];
 
   // TODO: Proper multi-output routing
@@ -236,17 +236,17 @@ int owmRenderContext_init() {
   return 0;
 }
 
-void owmRenderContext_close() {
-  owmFrameBuffer_destroyList(OWM_RENDER_CONTEXT.frame_buffers, FB_COUNT);
+void OWM_drmCloseRenderContext() {
+  OWM_destroyFrameBufferList(OWM_RENDER_CONTEXT.frame_buffers, FB_COUNT);
 }
 
-owmFrameBuffer* owmRenderContext_get_free_buffer() {
-  if (OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.next_buffer_idx].state != FB_FREE) {
+OWM_DRMFrameBuffer* OWM_drmGetFreeBuffer() {
+  if (OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.next_buffer_idx].state != OWM_FB_FREE) {
     return NULL;
   }
 
-  owmFrameBuffer *frame_buffer = &OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.next_buffer_idx];
-  frame_buffer->state = FB_QUEUED;
+  OWM_DRMFrameBuffer *frame_buffer = &OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.next_buffer_idx];
+  frame_buffer->state = OWM_FB_QUEUED;
   OWM_RENDER_CONTEXT.next_buffer_idx++;
   if (OWM_RENDER_CONTEXT.next_buffer_idx >= FB_COUNT) {
     OWM_RENDER_CONTEXT.next_buffer_idx = 0;
@@ -254,11 +254,11 @@ owmFrameBuffer* owmRenderContext_get_free_buffer() {
   return frame_buffer;
 }
 
-int owmRenderContext_submit_frame_buffer_swap_request() {
+int OWM_drmFlipRenderContext() {
   drmModeAtomicReq *atomicReq = drmModeAtomicAlloc();
 
-  owmPrimaryPlaneProperties* plane_props = &OWM_RENDER_DISPLAY.display->plane_primary_properties;
-  owmDisplay *display = OWM_RENDER_DISPLAY.display;
+  OWM_DRMPrimaryPlaneProperties* plane_props = &OWM_RENDER_DISPLAY.display->plane_primary_properties;
+  OWM_DRMDisplay *display = OWM_RENDER_DISPLAY.display;
   drmModeModeInfo* mode = &display->display_modes[OWM_RENDER_DISPLAY.selected_mode_idx];
 
   // Plane
@@ -287,7 +287,7 @@ int owmRenderContext_submit_frame_buffer_swap_request() {
     return ret;
   }
 
-  static owmFlipEvent flipEvent;
+  static OWM_DRMFlipEvent flipEvent;
   flipEvent.buffer_to_swap = OWM_RENDER_CONTEXT.queued_buffer_idx;
   int commitResult = drmModeAtomicCommit(display->fd_card, atomicReq, DRM_MODE_ATOMIC_NONBLOCK | DRM_MODE_PAGE_FLIP_EVENT, &flipEvent);
   if (commitResult != 0) {
@@ -304,24 +304,24 @@ int owmRenderContext_submit_frame_buffer_swap_request() {
   return 0;
 }
 
-inline bool owmRenderContext_is_next_frame_buffer_free() {
-  return OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.next_buffer_idx].state == FB_FREE;
+inline bool OWM_drmIsNextBufferFree() {
+  return OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.next_buffer_idx].state == OWM_FB_FREE;
 }
 
-inline uint32_t owmRenderDisplay_get_width() {
+inline uint32_t OWM_drmGetBufferWidth() {
   return OWM_RENDER_DISPLAY.display->display_modes[OWM_RENDER_DISPLAY.selected_mode_idx].hdisplay;
 }
 
-inline uint32_t owmRenderDisplay_get_height() {
+inline uint32_t OWM_drmGetBufferHeight() {
   return OWM_RENDER_DISPLAY.display->display_modes[OWM_RENDER_DISPLAY.selected_mode_idx].vdisplay;
 }
 
-inline int owmRenderDisplay_get_fd_card() {
+inline int OWM_drmGetCardFileDescritor() {
   return OWM_RENDER_DISPLAY.display->fd_card;
 }
 
-void owmRenderContext_page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec, void *data) {
-  owmFlipEvent *ev = data;
+void OWM_drmFlipRenderContextHandler(int fd, unsigned int frame, unsigned int sec, unsigned int usec, void *data) {
+  OWM_DRMFlipEvent *ev = data;
   int newDisplayedBufferIdx = ev->buffer_to_swap;
 
   // printf("Displayed buffer %d, frame time %lu us\n", newDisplayedBufferIdx, OWM_RENDER_CONTEXT.frame_time);
@@ -331,8 +331,8 @@ void owmRenderContext_page_flip_handler(int fd, unsigned int frame, unsigned int
     OWM_RENDER_CONTEXT.frame_time = now - OWM_RENDER_CONTEXT.last_timestamp;
   }
 
-  OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.displayed_buffer_idx].state = FB_FREE; // Old displayed buffer becomes DB_FREE
-  OWM_RENDER_CONTEXT.frame_buffers[newDisplayedBufferIdx].state = FB_DISPLAYED; // New disaplyed becomes FB_DISPLAYED
+  OWM_RENDER_CONTEXT.frame_buffers[OWM_RENDER_CONTEXT.displayed_buffer_idx].state = OWM_FB_FREE; // Old displayed buffer becomes DB_FREE
+  OWM_RENDER_CONTEXT.frame_buffers[newDisplayedBufferIdx].state = OWM_FB_DISPLAYED; // New disaplyed becomes FB_DISPLAYED
 
   OWM_RENDER_CONTEXT.displayed_buffer_idx = newDisplayedBufferIdx;
   OWM_RENDER_CONTEXT.last_timestamp = now;

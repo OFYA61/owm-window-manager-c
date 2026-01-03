@@ -22,7 +22,7 @@ typedef struct {
   uint32_t plane_src_y;
   uint32_t plane_src_w;
   uint32_t plane_src_h;
-} owmPrimaryPlaneProperties;
+} OWM_DRMPrimaryPlaneProperties;
 
 typedef struct {
   drmModeModeInfo* display_modes;
@@ -38,20 +38,21 @@ typedef struct {
   uint32_t crtc_index;
 
   uint32_t plane_primary;
-  owmPrimaryPlaneProperties plane_primary_properties;
+  OWM_DRMPrimaryPlaneProperties plane_primary_properties;
 
   uint32_t plane_cursor;
   uint32_t plane_overlay;
-} owmDisplay;
+} OWM_DRMDisplay;
 
 typedef struct {
-  owmDisplay* displays;
+  OWM_DRMDisplay* displays;
   size_t count;
-} owmDisplays;
+} OWM_DRMDisplays;
 
-/// Scan the displays and return them in the global `OWM_DISPLAYS` array
-int owmDisplays_scan();
-/// Goes over the displays in the the global `OWM_DISPLAYS` array and closes them
-void owmDisplays_close();
+/// Discovers the available displays from the DRM
+int OWM_scanDRMDisplays();
+/// Closes open file descriptors and cleans up allocated memory
+void OWM_closeDRMDisplays();
 
-const owmDisplays* owmDisplays_get();
+/// Returns the list of DRM displays
+const OWM_DRMDisplays* OWM_getDRMDisplays();

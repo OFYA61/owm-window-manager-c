@@ -1,6 +1,6 @@
 #pragma once
 
 /// Initialize Ofya Window Manager
-int owm_init();
+int OWM_init();
 /// Cleanup objects created for Ofya Window Manager
-void owm_cleanup();
+void OWM_shutdown();

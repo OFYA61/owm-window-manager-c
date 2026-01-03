@@ -9,19 +9,19 @@ typedef enum {
   OWM_EVENT_KEY_EVENT_PRESS,
   OWM_EVENT_KEY_EVENT_RELEASE,
   OWM_EVENT_KEY_EVENT_PRESS_REPEATE
-} owmEventKeyEventType;
+} OWM_KeyEventType;
 
 /// Setups up global `OWM_EVENT_POLL_FDS`.
 /// Requires the input devices `OWM_KEYBOARDS` and the `OWM_RENDER_DISPLAY` to be set before calling
-int owmEvents_setup();
+int OWM_setupEvents();
 /// Poll for events
-void owmEvents_poll();
+void OWM_pollEvents();
 /// Cleanup input device objects
-void owmEvents_cleanup();
+void OWM_cleanupEvents();
 
 /// Set callback function for keyboard key press events
-void owmEvents_set_keyboard_key_press_callback(void (*callback)(uint16_t key_code, owmEventKeyEventType event_type));
+void OWM_setKeyboardKeyPressCallback(void (*callback)(uint16_t key_code, OWM_KeyEventType event_type));
 /// Set callback function for mouse key press events
-void owmEvents_set_mouse_key_press_callback(void (*callback)(uint16_t key_code, owmEventKeyEventType event_type));
+void OWM_setMouseKeyPressCallback(void (*callback)(uint16_t key_code, OWM_KeyEventType event_type));
 /// Set callback function for mouse movement events
-void owmEvents_set_mouse_move_callback(void (*callback)(int rel_x, int rel_y));
+void OWM_setMouseMoveCallback(void (*callback)(int rel_x, int rel_y));

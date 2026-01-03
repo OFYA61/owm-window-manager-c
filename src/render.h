@@ -13,49 +13,49 @@ typedef struct {
   uint32_t pitch; 
   size_t size;
   void *map;
-} owmDumbFrameBuffer;
+} OWM_DRMDumbFrameBuffer;
 
-enum owmFBState {
-  FB_DISPLAYED,
-  FB_QUEUED,
-  FB_FREE
-};
+typedef enum {
+  OWM_FB_DISPLAYED,
+  OWM_FB_QUEUED,
+  OWM_FB_FREE
+} OWM_FBState ;
 
 typedef struct {
-  owmDumbFrameBuffer buffer;
-  enum owmFBState state;
-} owmFrameBuffer ;
+  OWM_DRMDumbFrameBuffer buffer;
+  OWM_FBState state;
+} OWM_DRMFrameBuffer ;
 
 typedef struct {
   uint64_t last_timestamp;
   uint64_t frame_time;
-  owmFrameBuffer frame_buffers[FB_COUNT];
+  OWM_DRMFrameBuffer frame_buffers[FB_COUNT];
   int displayed_buffer_idx;
   int queued_buffer_idx;
   int next_buffer_idx;
-} owmRenderContext;
+} OWM_DRMRenderContext;
 
 typedef struct {
   int buffer_to_swap;
-} owmFlipEvent;
+} OWM_DRMFlipEvent;
 
 /// Initializes the render context
-int owmRenderContext_init();
+int OWM_drmInitRenderContext();
 /// Cleans up objects related to the render context
-void owmRenderContext_close();
+void OWM_drmCloseRenderContext();
 
 /// Submit swap request
-int owmRenderContext_submit_frame_buffer_swap_request();
+int OWM_drmFlipRenderContext();
 /// Checks if there is a free buffer to be drawn on
-bool owmRenderContext_is_next_frame_buffer_free();
+bool OWM_drmIsNextBufferFree();
 /// Returns a `owmFrameBuffer` that is ready to be drawn upon.
 /// If no frame buffer is free, returns `NULL`.
-owmFrameBuffer* owmRenderContext_get_free_buffer();
+OWM_DRMFrameBuffer* OWM_drmGetFreeBuffer();
 
-uint32_t owmRenderDisplay_get_width();
-uint32_t owmRenderDisplay_get_height();
+uint32_t OWM_drmGetBufferWidth();
+uint32_t OWM_drmGetBufferHeight();
 
-int owmRenderDisplay_get_fd_card();
+int OWM_drmGetCardFileDescritor();
 
 /// Page flip handler.
-void owmRenderContext_page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec, void *data);
+void OWM_drmFlipRenderContextHandler(int fd, unsigned int frame, unsigned int sec, unsigned int usec, void *data);

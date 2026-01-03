@@ -7,15 +7,15 @@
 typedef struct {
   int *fds;
   size_t count;
-} owmKeyboards;
+} OWM_EvDevKeyboards;
 
 typedef struct {
   int *fds;
   size_t count;
-} owmMice;
+} OWM_EvDevMice;
 
-int owmInput_setup();
-void owmInput_close();
+int OWM_setupEvDev();
+void OWM_closeEvDev();
 
-const owmKeyboards* owmKeyboards_get();
-const owmMice* owmMice_get();
+const OWM_EvDevKeyboards* OWM_getEvDevKeyboards();
+const OWM_EvDevMice* OWM_getEvDevMice();

@@ -6,39 +6,39 @@
 #include "render.h"
 #include "window.h"
 
-int owm_init() {
-  if (owmInput_setup()) {
+int OWM_init() {
+  if (OWM_setupEvDev()) {
     goto owm_init_failure_input_setup;
   }
 
-  if (owmDisplays_scan()) {
+  if (OWM_scanDRMDisplays()) {
     goto owm_init_failure_display_scan;
   }
 
-  if (owmRenderContext_init()) {
+  if (OWM_drmInitRenderContext()) {
     goto owm_init_failure_render_context_init;
   }
 
-  if (owmEvents_setup()) {
+  if (OWM_setupEvents()) {
     goto owm_init_failure_events_setup;
   }
 
   return 0;
 
 owm_init_failure_events_setup:
-  owmRenderContext_close();
+  OWM_drmCloseRenderContext();
 owm_init_failure_render_context_init:
-  owmDisplays_close();
+  OWM_closeDRMDisplays();
 owm_init_failure_display_scan:
-  owmInput_close();
+  OWM_closeEvDev();
 owm_init_failure_input_setup:
   return 1;
 }
 
-void owm_cleanup() {
-  owmWindows_cleanup();
-  owmEvents_cleanup();
-  owmInput_close();
-  owmRenderContext_close();
-  owmDisplays_close();
+void OWM_shutdown() {
+  OWM_cleanupWindows();
+  OWM_cleanupEvents();
+  OWM_closeEvDev();
+  OWM_drmCloseRenderContext();
+  OWM_closeDRMDisplays();
 }

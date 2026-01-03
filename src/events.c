@@ -30,19 +30,19 @@ typedef struct {
     OWM_INPUT_DEVICE_TYPE_MOUSE,
     OWM_INPUT_DEVICE_TYPE_DRM
   } type;
-} OwmInputDeviceInfo;
+} OWM_InputDeviceInfo;
 
 typedef struct {
   int epoll_instance_fd;
   size_t count;
-  OwmInputDeviceInfo *device_infos;
-} OwmEventPollData;
+  OWM_InputDeviceInfo *device_infos;
+} OWM_EventPollData;
 
-OwmEventPollData OWM_EVENT_POLL_DATAS = { 0 };
+OWM_EventPollData OWM_EVENT_POLL_DATAS = { 0 };
 
-int owmEvents_setup() {
-  const owmKeyboards *keyboards = owmKeyboards_get();
-  const owmMice *mice = owmMice_get();
+int OWM_setupEvents() {
+  const OWM_EvDevKeyboards *keyboards = OWM_getEvDevKeyboards();
+  const OWM_EvDevMice *mice = OWM_getEvDevMice();
   size_t size = 1 +                 // 1 for render display
                 keyboards->count +  // Keyboard input devices
                 mice->count;        // Mouse input devices
@@ -50,12 +50,12 @@ int owmEvents_setup() {
   struct epoll_event ev;
   
   OWM_EVENT_POLL_DATAS.epoll_instance_fd = epoll_instance_fd;
-  OWM_EVENT_POLL_DATAS.device_infos = malloc(sizeof(OwmInputDeviceInfo) * size);
+  OWM_EVENT_POLL_DATAS.device_infos = malloc(sizeof(OWM_InputDeviceInfo) * size);
   OWM_EVENT_POLL_DATAS.count = size;
 
   // Register render display
   size_t index = 0;
-  int drm_fd = owmRenderDisplay_get_fd_card();
+  int drm_fd = OWM_drmGetCardFileDescritor();
   OWM_EVENT_POLL_DATAS.device_infos[index].fd = drm_fd;
   OWM_EVENT_POLL_DATAS.device_infos[index].type = OWM_INPUT_DEVICE_TYPE_DRM;
   ev.data.fd = drm_fd;
@@ -63,7 +63,7 @@ int owmEvents_setup() {
   ev.events = EPOLLIN;
   if (epoll_ctl(epoll_instance_fd, EPOLL_CTL_ADD, drm_fd, &ev)) {
     perror("epoll_ctl: register DMR");
-    goto owmEvents_setup_failure;
+    goto OWM_events_setup_failure;
   }
   index++;
 
@@ -79,7 +79,7 @@ int owmEvents_setup() {
     ev.events = EPOLLIN;
     if (epoll_ctl(epoll_instance_fd, EPOLL_CTL_ADD, kbd_fd, &ev)) {
       perror("epoll_ctl: register DMR");
-      goto owmEvents_setup_failure;
+      goto OWM_events_setup_failure;
     }
 
     index++;
@@ -98,7 +98,7 @@ int owmEvents_setup() {
     ev.events = EPOLLIN;
     if (epoll_ctl(epoll_instance_fd, EPOLL_CTL_ADD, mouse_fd, &ev)) {
       perror("epoll_ctl: register DMR");
-      goto owmEvents_setup_failure;
+      goto OWM_events_setup_failure;
     }
 
     index++;
@@ -106,28 +106,28 @@ int owmEvents_setup() {
   }
   return 0;
 
-owmEvents_setup_failure:
+OWM_events_setup_failure:
   free(OWM_EVENT_POLL_DATAS.device_infos);
   return 1;
 }
 
-void (*owmEvents_keyboard_key_press_callback)(uint16_t key_code, owmEventKeyEventType event_type) = NULL;
-void (*owmEvents_mouse_key_press_callback)(uint16_t key_code, owmEventKeyEventType event_type) = NULL;
-void (*owmEvents_mouse_move_callback)(int rel_x, int rel_y) = NULL;
+void (*owm_keyboard_key_press_callback)(uint16_t key_code, OWM_KeyEventType event_type) = NULL;
+void (*owm_mouse_key_press_callback)(uint16_t key_code, OWM_KeyEventType event_type) = NULL;
+void (*owm_mouse_move_callback)(int rel_x, int rel_y) = NULL;
 
-void owmEvents_set_keyboard_key_press_callback(void (*callback)(uint16_t key_code, owmEventKeyEventType event_type)) {
-  owmEvents_keyboard_key_press_callback = callback;
+void OWM_setKeyboardKeyPressCallback(void (*callback)(uint16_t key_code, OWM_KeyEventType event_type)) {
+  owm_keyboard_key_press_callback = callback;
 }
 
-void owmEvents_set_mouse_key_press_callback(void (*callback)(uint16_t key_code, owmEventKeyEventType event_type)) {
-  owmEvents_mouse_key_press_callback = callback;
+void OWM_setMouseKeyPressCallback(void (*callback)(uint16_t key_code, OWM_KeyEventType event_type)) {
+  owm_mouse_key_press_callback = callback;
 }
 
-void owmEvents_set_mouse_move_callback(void (*callback)(int rel_x, int rel_y)) {
-  owmEvents_mouse_move_callback = callback;
+void OWM_setMouseMoveCallback(void (*callback)(int rel_x, int rel_y)) {
+  owm_mouse_move_callback = callback;
 }
 
-owmEventKeyEventType owmEvents_get_key_event_type(uint16_t key_code, bool pressed) {
+OWM_KeyEventType OWM_getKeyEventType(uint16_t key_code, bool pressed) {
   if (!pressed) {
     CLEAR_KEY_PRESS(key_code);
     return OWM_EVENT_KEY_EVENT_RELEASE;
@@ -142,9 +142,8 @@ owmEventKeyEventType owmEvents_get_key_event_type(uint16_t key_code, bool presse
 
 #define MAX_EVENTS_TO_PROCESS 16
 struct epoll_event events_to_process[MAX_EVENTS_TO_PROCESS];
-
-void owmEvents_poll() {
-  int timeout = owmRenderContext_is_next_frame_buffer_free() ? 10 : -1;
+void OWM_pollEvents() {
+  int timeout = OWM_drmIsNextBufferFree() ? 10 : -1;
 
   int num_ready = epoll_wait(
     OWM_EVENT_POLL_DATAS.epoll_instance_fd,
@@ -154,14 +153,14 @@ void owmEvents_poll() {
   );
 
   for (int i = 0; i < num_ready; ++i) {
-    OwmInputDeviceInfo *device_info = events_to_process[i].data.ptr;
+    OWM_InputDeviceInfo *device_info = events_to_process[i].data.ptr;
     int fd = device_info->fd;
     int type = device_info->type;
 
     if (type == OWM_INPUT_DEVICE_TYPE_DRM) {
       drmEventContext ev = {
         .version = DRM_EVENT_CONTEXT_VERSION,
-        .page_flip_handler = owmRenderContext_page_flip_handler
+        .page_flip_handler = OWM_drmFlipRenderContextHandler
       };
       drmHandleEvent(fd, &ev);
     }
@@ -170,9 +169,9 @@ void owmEvents_poll() {
       struct input_event ev;
       while (read(fd, &ev, sizeof(ev)) == sizeof(ev)) {
         if (ev.type == EV_KEY) {
-          owmEventKeyEventType event_type = owmEvents_get_key_event_type(ev.code, ev.value ? true : false);
-          if (owmEvents_keyboard_key_press_callback != NULL) {
-            owmEvents_keyboard_key_press_callback(ev.code, event_type);
+          OWM_KeyEventType event_type = OWM_getKeyEventType(ev.code, ev.value ? true : false);
+          if (owm_keyboard_key_press_callback != NULL) {
+            owm_keyboard_key_press_callback(ev.code, event_type);
           }
         }
       }
@@ -192,13 +191,13 @@ void owmEvents_poll() {
             // TODO: handle scroll wheel
           }
         } else if (ev.type == EV_KEY) {
-          owmEventKeyEventType event_type = owmEvents_get_key_event_type(ev.code, ev.value ? true : false);
-          if (owmEvents_mouse_key_press_callback != NULL) {
-            owmEvents_mouse_key_press_callback(ev.code, event_type);
+          OWM_KeyEventType event_type = OWM_getKeyEventType(ev.code, ev.value ? true : false);
+          if (owm_mouse_key_press_callback != NULL) {
+            owm_mouse_key_press_callback(ev.code, event_type);
           }
         } else if (ev.type == EV_SYN && ev.code == SYN_REPORT) { // The mouse "packet" is complete. Dispatch total movement
-          if (owmEvents_mouse_move_callback != NULL) {
-            owmEvents_mouse_move_callback(rel_x, rel_y);
+          if (owm_mouse_move_callback != NULL) {
+            owm_mouse_move_callback(rel_x, rel_y);
           }
           rel_x = 0;
           rel_y = 0;
@@ -208,6 +207,6 @@ void owmEvents_poll() {
   }
 }
 
-void owmEvents_cleanup() {
+void OWM_cleanupEvents() {
   free(OWM_EVENT_POLL_DATAS.device_infos);
 }

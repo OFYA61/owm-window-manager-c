@@ -13,21 +13,21 @@
 #include <xf86drmMode.h>
 #include <drm_fourcc.h>
 
-owmDisplays OWM_DISPLAYS = { NULL, 0 };
+OWM_DRMDisplays OWM_DISPLAYS = { NULL, 0 };
 
 typedef struct {
   char **cards;
   size_t count;
-} owmDRMGraphicsCards;
+} OWM_DRMGraphicsCards;
 
-void owmDRMGraphicsCard_free(owmDRMGraphicsCards* gcs) {
+void OWM_freeDRMGraphicsCards(OWM_DRMGraphicsCards* gcs) {
   for (size_t i = 0; i < gcs->count; ++i) {
     free(gcs->cards[i]);
   }
   free(gcs->cards);
 }
 
-int owmDRMGraphicsCard_discover(owmDRMGraphicsCards* out) {
+int OWM_discoverDRMGraphicsCards(OWM_DRMGraphicsCards* out) {
   DIR *d;
   struct dirent *dir;
   d = opendir("/dev/dri");
@@ -49,7 +49,7 @@ int owmDRMGraphicsCard_discover(owmDRMGraphicsCards* out) {
       capacity++;
       char **tmp_cards = realloc(out->cards, capacity * sizeof(char *));
       if (tmp_cards == NULL) {
-        owmDRMGraphicsCard_free(out);
+        OWM_freeDRMGraphicsCards(out);
         return 1;
       }
       out->cards = tmp_cards;
@@ -82,15 +82,15 @@ uint32_t get_prop_id(int fd, uint32_t obj_id, uint32_t obj_type, const char *nam
 }
 
 
-int owmDisplays_scan() {
-  owmDRMGraphicsCards gcs;
-  if (owmDRMGraphicsCard_discover(&gcs)) {
+int OWM_scanDRMDisplays() {
+  OWM_DRMGraphicsCards gcs;
+  if (OWM_discoverDRMGraphicsCards(&gcs)) {
     fprintf(stderr, "Failed to located graphics cards\n");
     return 1;
   }
 
   size_t displaysCapacity = 1;
-  OWM_DISPLAYS.displays = malloc(displaysCapacity * sizeof(owmDisplay));
+  OWM_DISPLAYS.displays = malloc(displaysCapacity * sizeof(OWM_DRMDisplay));
   OWM_DISPLAYS.count = 0;
   char card_path[64];
   for (size_t gc_idx = 0; gc_idx < gcs.count; ++gc_idx) {
@@ -168,7 +168,7 @@ int owmDisplays_scan() {
 
       if (OWM_DISPLAYS.count == displaysCapacity) { // Expand buffer if no space left
         displaysCapacity++;
-        owmDisplay* tmp_displays = realloc(OWM_DISPLAYS.displays, displaysCapacity * sizeof(owmDisplay));
+        OWM_DRMDisplay* tmp_displays = realloc(OWM_DISPLAYS.displays, displaysCapacity * sizeof(OWM_DRMDisplay));
         if (tmp_displays == NULL) {
           fprintf(stderr, "Failed to expand storage for ProbeResults");
           goto conn_enc_cleanup;
@@ -176,7 +176,7 @@ int owmDisplays_scan() {
         OWM_DISPLAYS.displays = tmp_displays;
       }
 
-      owmDisplay display = { 0 };
+      OWM_DRMDisplay display = { 0 };
       display.display_modes = malloc(conn->count_modes * sizeof(drmModeModeInfo));
       memcpy(display.display_modes, conn->modes, conn->count_modes * sizeof(drmModeModeInfo));
 
@@ -289,7 +289,7 @@ int owmDisplays_scan() {
     drmModeFreeResources(res);
   }
 
-  owmDRMGraphicsCard_free(&gcs);
+  OWM_freeDRMGraphicsCards(&gcs);
   
   if (OWM_DISPLAYS.count == 0) {
     return 1;
@@ -298,12 +298,12 @@ int owmDisplays_scan() {
   return 0;
 }
 
-void owmDisplays_close() {
+void OWM_closeDRMDisplays() {
   for (size_t display_idx = 0; display_idx < OWM_DISPLAYS.count; ++display_idx) {
     close(OWM_DISPLAYS.displays[display_idx].fd_card);
   }
 }
 
-inline const owmDisplays* owmDisplays_get() {
+inline const OWM_DRMDisplays* OWM_getDRMDisplays() {
   return &OWM_DISPLAYS;
 }

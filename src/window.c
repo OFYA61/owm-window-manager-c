@@ -169,7 +169,7 @@ owmWindowBorder owmWindow_get_resize_border_size(owmWindow* window, uint32_t x, 
   return owmWindow_get_border_side_with_border_width(window, x, y, OWM_RESIZE_BORDER_SIZE);
 }
 
-void owmWindow_render(size_t window_idx, owmFrameBuffer* frameBuffer) {
+void owmWindow_render(size_t window_idx, OWM_DRMFrameBuffer* frameBuffer) {
   owmWindow* window = &OWM_WINDOWS.windows[window_idx];
   uint32_t *pixel = frameBuffer->buffer.map;
 
@@ -180,8 +180,8 @@ void owmWindow_render(size_t window_idx, owmFrameBuffer* frameBuffer) {
     y_start = 0;
   }
   uint32_t y_end = window->pos_y + window->height;
-  if (y_end > owmRenderDisplay_get_height()) {
-    y_end = owmRenderDisplay_get_height() - 1;
+  if (y_end > OWM_drmGetBufferHeight()) {
+    y_end = OWM_drmGetBufferHeight() - 1;
   }
 
   uint32_t x_start;
@@ -191,8 +191,8 @@ void owmWindow_render(size_t window_idx, owmFrameBuffer* frameBuffer) {
     x_start = 0;
   }
   uint32_t x_end = window->pos_x + window->width;
-  if (x_end > owmRenderDisplay_get_width()) {
-    x_end = owmRenderDisplay_get_width() - 1;
+  if (x_end > OWM_drmGetBufferWidth()) {
+    x_end = OWM_drmGetBufferWidth() - 1;
   }
 
   pixel += (frameBuffer->buffer.pitch / 4) * y_start;
@@ -210,7 +210,7 @@ void owmWindow_render(size_t window_idx, owmFrameBuffer* frameBuffer) {
   }
 }
 
-void owmWindows_render(owmFrameBuffer* frameBuffer) {
+void OWM_renderWindows(OWM_DRMFrameBuffer* frameBuffer) {
   if (OWM_WINDOWS.count <= 0) {
     return;
   }
@@ -222,7 +222,7 @@ void owmWindows_render(owmFrameBuffer* frameBuffer) {
   } while(window_idx > 0);
 }
 
-void owmWindows_process_mouse_move_event(uint32_t new_mouse_x, uint32_t new_mouse_y, int32_t mouse_delta_x, int32_t mouse_delta_y) {
+void OWM_processWindowMouseEvent(uint32_t new_mouse_x, uint32_t new_mouse_y, int32_t mouse_delta_x, int32_t mouse_delta_y) {
   if (OWM_WINDOWS.count <= 0) {
     return;
   }
@@ -353,7 +353,7 @@ void owmWindows_process_mouse_move_event(uint32_t new_mouse_x, uint32_t new_mous
   }
 }
 
-void owmWindows_process_mouse_key_event(uint32_t mouse_x, uint32_t mouse_y, uint16_t key_code, owmEventKeyEventType event_type) {
+void OWM_processWindowMouseButtonEvent(uint32_t mouse_x, uint32_t mouse_y, uint16_t key_code, OWM_KeyEventType event_type) {
   if (key_code != BTN_LEFT) { // For now only handle left mouse button events
     return;
   }
@@ -442,7 +442,7 @@ void owmWindows_process_mouse_key_event(uint32_t mouse_x, uint32_t mouse_y, uint
   }
 }
 
-void owmWindows_process_key_event(uint16_t key_code, owmEventKeyEventType event_type) {
+void OWM_processKeyEvent(uint16_t key_code, OWM_KeyEventType event_type) {
   if (key_code == KEY_W && event_type == OWM_EVENT_KEY_EVENT_PRESS) {
     owmWindows_create_window();
   } else if (key_code == KEY_Q && event_type == OWM_EVENT_KEY_EVENT_PRESS) {
@@ -450,6 +450,6 @@ void owmWindows_process_key_event(uint16_t key_code, owmEventKeyEventType event_
   }
 }
 
-void owmWindows_cleanup() {
+void OWM_cleanupWindows() {
   free(OWM_WINDOWS.windows);
 }
