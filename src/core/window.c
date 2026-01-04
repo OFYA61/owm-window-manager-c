@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "backend/backend.h"
+#include "core/cursor.h"
 #include "event.h"
 #include "input.h"
 
@@ -223,7 +224,9 @@ void OWM_renderWindows(OWM_FrameBuffer* frameBuffer) {
   } while(window_idx > 0);
 }
 
-void OWM_processWindowMouseEvent(uint32_t new_mouse_x, uint32_t new_mouse_y, int32_t mouse_delta_x, int32_t mouse_delta_y) {
+void OWM_processWindowMouseEvent(int32_t mouse_delta_x, int32_t mouse_delta_y) {
+  // int32_t mouse_x = OWM_getCursorX();
+  // int32_t mouse_y = OWM_getCursorY();
   if (OWM_WINDOWS.count <= 0) {
     return;
   }
@@ -354,7 +357,9 @@ void OWM_processWindowMouseEvent(uint32_t new_mouse_x, uint32_t new_mouse_y, int
   }
 }
 
-void OWM_processWindowMouseButtonEvent(uint32_t mouse_x, uint32_t mouse_y, uint16_t key_code, OWM_KeyEventType event_type) {
+void OWM_processWindowMouseButtonEvent(uint16_t key_code, OWM_KeyEventType event_type) {
+  int32_t mouse_x = OWM_getCursorX();
+  int32_t mouse_y = OWM_getCursorY();
   if (key_code != OWM_BTN_LEFT) { // For now only handle left mouse button events
     return;
   }
@@ -368,10 +373,10 @@ void OWM_processWindowMouseButtonEvent(uint32_t mouse_x, uint32_t mouse_y, uint1
     for (size_t window_idx = 0; window_idx < OWM_WINDOWS.count; ++window_idx) {
       owmWindow* window = &OWM_WINDOWS.windows[window_idx];
       if (
-        window->pos_x <= (int32_t) mouse_x &&
-        (int32_t) mouse_x <= window->pos_x + (int32_t) window->width &&
-        window->pos_y <= (int32_t) mouse_y &&
-        (int32_t) mouse_y <= window->pos_y + (int32_t) window->height
+        window->pos_x <= mouse_x &&
+        mouse_x <= window->pos_x + (int32_t) window->width &&
+        window->pos_y <= mouse_y &&
+         mouse_y <= window->pos_y + (int32_t) window->height
       ) {
         clicked_window_idx = window_idx;
         break;

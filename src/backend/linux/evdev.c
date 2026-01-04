@@ -10,6 +10,7 @@
 #include <sys/epoll.h>
 #include <sys/ioctl.h>
 #include <linux/input.h>
+#include <unistd.h>
 #include <xf86drm.h>
 
 #include "core/event.h"

@@ -9,7 +9,7 @@
 
 // Stores if the key is pressed or not, we need to keep track of this in order to differentiate between
 // an initial press and a repeat press
-uint8_t KEY_STATUS[BITSIZE(KEY_MAX)] = { 0 };
+uint8_t KEY_STATUS[BITSIZE(OWM_KEY_MAX)] = { 0 };
 
 #define IS_KEY_PRESSED(idx) (KEY_STATUS[(idx)/8] & (1 << ((idx) % 8)))
 #define CLEAR_KEY_PRESS(idx) (KEY_STATUS[(idx)/8] &= ~(1 << ((idx) % 8)))
