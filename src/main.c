@@ -29,23 +29,26 @@ void mouseMoveCallback(int rel_x, int rel_y) {
 int main() {
   srand(time(NULL)); // Just to get different colors on dummy windows on each run
 
-  if (OWM_init(OWM_BACKEND_TYPE_LINUX)) {
+  if (OWM_init(OWM_BACKEND_TYPE_WAYLAND)) {
     fprintf(stderr, "Failed to initialize owm\n");
     return 1;
   }
 
-  OWM_Backend* context = OWM_getContext();
-  OWM_updateCursorConfines(0, context->getDisplayWidth(), 0, context->getDisplayHeight());
+  OWM_Backend* backend = OWM_getContext();
+  uint32_t display_width = backend->getDisplayWidth();
+  uint32_t display_height = backend->getDisplayHeight();
+  OWM_updateCursorConfines(0, display_width, 0, display_height);
 
   OWM_setKeyboardKeyPressCallback(keyboardKeyPressCallback);
   OWM_setMouseKeyPressCallback(mouseKeyPressCallback);
   OWM_setMouseMoveCallback(mouseMoveCallback);
 
   while (running) {
-    context->dispatch();
+    backend->dispatch();
 
     OWM_FrameBuffer *frame_buffer;
-    if((frame_buffer = context->aquireFreeFrameBuffer()) != NULL) {
+    if((frame_buffer = backend->aquireFreeFrameBuffer()) != NULL) {
+      printf("Yay\n");
       // Render
       // Clear screen
       // TODO: extract into separete function on BE to clear a given part of the screen
@@ -61,7 +64,7 @@ int main() {
       OWM_renderWindows(frame_buffer);
       OWM_renderCursor(frame_buffer);
 
-      if (context->swapBuffers() != 0) {
+      if (backend->swapBuffers() != 0) {
         fprintf(stderr, "Failed to submit swap frame buffer request\n");
       }
     }

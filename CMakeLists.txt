@@ -15,10 +15,10 @@ include_directories(${LIBDRM_INCLUDE_DIRS}) # Include the libdrm headers
 
 # Set compile flags
 if (${BUILD_TYPE} STREQUAL "DEBUG")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -lwayland-client")
   set(EXECUTABLE_NAME "${PROJECT_NAME}-debug")
 else()
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -O3")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -lwayland-client -O3")
   set(EXECUTABLE_NAME "${PROJECT_NAME}")
 endif()
 

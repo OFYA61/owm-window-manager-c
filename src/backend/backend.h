@@ -1,9 +1,11 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 typedef enum {
-  OWM_BACKEND_TYPE_LINUX
+  OWM_BACKEND_TYPE_LINUX,
+  OWM_BACKEND_TYPE_WAYLAND
 } OWM_BackendType;
 
 typedef struct {
