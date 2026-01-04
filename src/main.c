@@ -29,7 +29,7 @@ void mouseMoveCallback(int rel_x, int rel_y) {
 int main() {
   srand(time(NULL)); // Just to get different colors on dummy windows on each run
 
-  if (OWM_init(OWM_BACKEND_TYPE_WAYLAND)) {
+  if (OWM_init(OWM_BACKEND_TYPE_LINUX)) {
     fprintf(stderr, "Failed to initialize owm\n");
     return 1;
   }
