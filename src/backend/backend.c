@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 
-#include "linux/linux.h"
+#include "linux/linux_backend.h"
 
 int OWM_initBackend(OWM_BackendType type, OWM_Backend *out_backend) {
   if (type == OWM_BACKEND_TYPE_LINUX) {
