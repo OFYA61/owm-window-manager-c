@@ -11,23 +11,23 @@
 
 bool running = true;
 
-void keyboardKeyPressCallback(OWM_KeyCode key_code, OWM_KeyEventType event_type) {
+static void keyboardKeyPressCallback(OWM_KeyCode key_code, OWM_KeyEventType event_type) {
   if (event_type == OWM_EVENT_KEY_EVENT_PRESS && key_code == OWM_KEY_ESC) {
     running = false;
   }
   OWM_processWindowKeyEvent(key_code, event_type);
 }
 
-void mouseKeyPressCallback(OWM_KeyCode key_code, OWM_KeyEventType event_type) {
+static void mouseKeyPressCallback(OWM_KeyCode key_code, OWM_KeyEventType event_type) {
   OWM_processWindowMouseButtonEvent(key_code, event_type);
 }
 
-void mouseMoveCallback(int rel_x, int rel_y) {
+static void mouseMoveCallback(int rel_x, int rel_y) {
   OWM_updateCursorPosition(rel_x, rel_y);
   OWM_processWindowMouseEvent(rel_x, rel_y);
 }
 
-void mouseSetPositionCallback(int x, int y) {
+static void mouseSetPositionCallback(int x, int y) {
   OWM_setCursorPosition(x, y);
 }
 

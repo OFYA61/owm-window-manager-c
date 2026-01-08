@@ -20,14 +20,14 @@ typedef struct {
   size_t count;
 } OWM_DRMGraphicsCards;
 
-void freeDRMGraphicsCards(OWM_DRMGraphicsCards* gcs) {
+static void freeDRMGraphicsCards(OWM_DRMGraphicsCards* gcs) {
   for (size_t i = 0; i < gcs->count; ++i) {
     free(gcs->cards[i]);
   }
   free(gcs->cards);
 }
 
-int discoverDRMGraphicsCards(OWM_DRMGraphicsCards* out) {
+static int discoverDRMGraphicsCards(OWM_DRMGraphicsCards* out) {
   DIR *d;
   struct dirent *dir;
   d = opendir("/dev/dri");
@@ -64,7 +64,7 @@ int discoverDRMGraphicsCards(OWM_DRMGraphicsCards* out) {
   return 0;
 }
 
-uint32_t getPropId(int fd, uint32_t obj_id, uint32_t obj_type, const char *name) {
+static uint32_t getPropId(int fd, uint32_t obj_id, uint32_t obj_type, const char *name) {
   drmModeObjectProperties *props = drmModeObjectGetProperties(fd, obj_id, obj_type);
   for (uint32_t i = 0; i < props->count_props; ++i) {
     drmModePropertyRes *prop = drmModeGetProperty(fd, props->props[i]);

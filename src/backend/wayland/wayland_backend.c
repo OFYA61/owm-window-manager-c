@@ -1,3 +1,4 @@
+#pragma clang diagnostic ignored "-Wunused-parameter"
 #define _GNU_SOURCE
 
 #include <stdbool.h>
@@ -14,14 +15,13 @@
 #include <wayland-client.h>
 #include <linux/input-event-codes.h>
 
-#include "core/event.h"
-#include "core/input.h"
 #include "backend/backend.h"
 #include "wayland_backend.h"
 #include "xdg-shell-client-protocol.h"
+#include "event.h"
 
-#define WIDTH 1280;
-#define HEIGHT 720;
+#define WIDTH 1920;
+#define HEIGHT 1080;
 
 typedef struct {
   int width;
@@ -67,37 +67,37 @@ typedef struct {
   int next_buffer_idx;
 } OWM_WaylandRenderContext;
 
-WaylandDisplay WAYLAND_DISPLAY = { 0 };
-WaylandWindow WAYLAND_WINDOW = { 0 };
-OWM_WaylandRenderContext OWM_WAYLAND_RENDER_CONTEXT = { 0 };
+static WaylandDisplay WAYLAND_DISPLAY = { 0 };
+static WaylandWindow WAYLAND_WINDOW = { 0 };
+static OWM_WaylandRenderContext OWM_WAYLAND_RENDER_CONTEXT = { 0 };
 
-uint32_t getWidth() {
+static uint32_t getWidth() {
   return WAYLAND_WINDOW.width;
 }
 
-uint32_t getHeight() {
+static uint32_t getHeight() {
   return WAYLAND_WINDOW.height;
 }
 
-void dispatch() {
+static void dispatch() {
   wl_display_dispatch(WAYLAND_DISPLAY.display);
 }
 
-OWM_FrameBuffer* OWM_waylandAquireFreeFrameBuffer() {
+static OWM_FrameBuffer* aquireFreeFrameBuffer() {
   if (OWM_WAYLAND_RENDER_CONTEXT.frame_buffers[OWM_WAYLAND_RENDER_CONTEXT.next_buffer_idx].state != OWM_FRAME_BUFFER_STATE_FREE) {
     return NULL;
   }
 
-  WaylandFrameBuffer *drm_frame_buffer = &OWM_WAYLAND_RENDER_CONTEXT.frame_buffers[OWM_WAYLAND_RENDER_CONTEXT.next_buffer_idx];
-  drm_frame_buffer->state = OWM_FRAME_BUFFER_STATE_QUEUED;
+  WaylandFrameBuffer *wfb = &OWM_WAYLAND_RENDER_CONTEXT.frame_buffers[OWM_WAYLAND_RENDER_CONTEXT.next_buffer_idx];
+  wfb->state = OWM_FRAME_BUFFER_STATE_QUEUED;
   OWM_WAYLAND_RENDER_CONTEXT.next_buffer_idx++;
   if (OWM_WAYLAND_RENDER_CONTEXT.next_buffer_idx >= FB_COUNT) {
     OWM_WAYLAND_RENDER_CONTEXT.next_buffer_idx = 0;
   }
-  return &drm_frame_buffer->frame_buffer;
+  return &wfb->frame_buffer;
 }
 
-int OWM_waylandFlipRenderContext() {
+static int swapBuffers() {
   WaylandFrameBuffer *wfb = &OWM_WAYLAND_RENDER_CONTEXT.frame_buffers[OWM_WAYLAND_RENDER_CONTEXT.queued_buffer_idx];
   wl_surface_attach(WAYLAND_WINDOW.surface, wfb->wl_buffer, 0, 0);
   wl_surface_damage(WAYLAND_WINDOW.surface, 0, 0, WAYLAND_WINDOW.width, WAYLAND_WINDOW.height);
@@ -121,100 +121,11 @@ static int create_shm_file(off_t size) {
   return fd;
 }
 
-OWM_KeyCode waylandTranslateKeyCode(uint16_t key_code) {
-  return (OWM_KeyCode) key_code;
-}
-
-static int last_mouse_x = 0;
-static int last_mouse_y = 0;
-
-static void pointer_handle_enter(void *data, struct wl_pointer *pointer, uint32_t serial, struct wl_surface *surface, wl_fixed_t surface_x, wl_fixed_t surface_y) {
-  last_mouse_x = (int) wl_fixed_to_double(surface_x);
-  last_mouse_y = (int) wl_fixed_to_double(surface_y);
-  OWM_submitMouseSetPositionCallback(last_mouse_x, last_mouse_y);
-}
-
-static void pointer_handle_leave(void *data, struct wl_pointer *pointer, uint32_t serial, struct wl_surface *surface) {
-  // printf("Mouse left the window\n");
-}
-
-static void pointer_handle_motion(void *data, struct wl_pointer *pointer, uint32_t time, wl_fixed_t x, wl_fixed_t y) {
-  int new_x = (int) wl_fixed_to_double(x);
-  int new_y = (int) wl_fixed_to_double(y);
-  OWM_submitMouseMoveCallback(new_x - last_mouse_x, new_y - last_mouse_y);
-  last_mouse_x = new_x;
-  last_mouse_y = new_y;
-}
-
-static void pointer_handle_button(void *data, struct wl_pointer *pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state) {
-  OWM_submitMouseKeyPressCallback((OWM_KeyCode) button, state ? true : false);
-}
-
-static void pointer_handle_axis(void *data, struct wl_pointer *pointer, uint32_t time, uint32_t axis, int32_t value) {
-  // static int last_value = 0;
-  // int delta = value - last_value;
-  // last_value = value;
-}
-
-static const struct wl_pointer_listener pointer_listener = {
-  pointer_handle_enter,
-  pointer_handle_leave,
-  pointer_handle_motion,
-  pointer_handle_button,
-  pointer_handle_axis,
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-  NULL
-};
-
-static void keyboard_handle_keymap(void *data, struct wl_keyboard *keyboard, uint32_t format, int fd, uint32_t size)
-{
-	/* Just so we don’t leak the keymap fd */
-	close(fd);
-}
-
-static void keyboard_handle_enter(void *data, struct wl_keyboard *keyboard, uint32_t serial, struct wl_surface *surface, struct wl_array *keys)
-{
-}
-
-static void keyboard_handle_leave(void *data, struct wl_keyboard *keyboard, uint32_t serial, struct wl_surface *surface)
-{
-}
-
-static void keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state)
-{
-	// if (key == KEY_F11 && state) {
-	// 	if (WAYLAND_DISPLAY.window->fullscreen)
-	// 		xdg_toplevel_unset_fullscreen(d->window->xdg_toplevel);
-	// 	else
-	// 		xdg_toplevel_set_fullscreen(d->window->xdg_toplevel, NULL);
-	// } else if (key == KEY_ESC && state) {
-	// 	running = 0;
-	// }
-  OWM_submitKeyboardKeyPressCallback(waylandTranslateKeyCode(key), state ? true : false);
-}
-
-static void keyboard_handle_modifiers(void *data, struct wl_keyboard *keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group)
-{
-}
-
-static const struct wl_keyboard_listener keyboard_listener = {
-	keyboard_handle_keymap,
-	keyboard_handle_enter,
-	keyboard_handle_leave,
-  keyboard_handle_key,
-	keyboard_handle_modifiers,
-  NULL
-};
-
 static void seat_handle_capabilities(void *data, struct wl_seat *seat, enum wl_seat_capability caps)
 {
 	if ((caps & WL_SEAT_CAPABILITY_KEYBOARD) && !WAYLAND_DISPLAY.keyboard) {
 		WAYLAND_DISPLAY.keyboard = wl_seat_get_keyboard(seat);
-		wl_keyboard_add_listener(WAYLAND_DISPLAY.keyboard, &keyboard_listener, NULL);
+		wl_keyboard_add_listener(WAYLAND_DISPLAY.keyboard, OWM_waylandGetKeyboardListener(), NULL);
 	} else if (!(caps & WL_SEAT_CAPABILITY_KEYBOARD) && WAYLAND_DISPLAY.keyboard) {
 		wl_keyboard_destroy(WAYLAND_DISPLAY.keyboard);
 		WAYLAND_DISPLAY.keyboard = NULL;
@@ -222,7 +133,7 @@ static void seat_handle_capabilities(void *data, struct wl_seat *seat, enum wl_s
 
   if ((caps & WL_SEAT_CAPABILITY_POINTER) && !WAYLAND_DISPLAY.pointer) {
     WAYLAND_DISPLAY.pointer = wl_seat_get_pointer(seat);
-    wl_pointer_add_listener(WAYLAND_DISPLAY.pointer, &pointer_listener, NULL);
+    wl_pointer_add_listener(WAYLAND_DISPLAY.pointer, OWM_waylandGetPointerListener(), NULL);
   } else if (!(caps & WL_SEAT_CAPABILITY_POINTER) && WAYLAND_DISPLAY.pointer) {
     wl_pointer_destroy(WAYLAND_DISPLAY.pointer);
     WAYLAND_DISPLAY.pointer = NULL;
@@ -234,7 +145,6 @@ static const struct wl_seat_listener seat_listener = {
 	.capabilities = seat_handle_capabilities,
 };
 
-// Registry listener to find globals
 static void registry_handle_global(
   void *data,
   struct wl_registry *registry,
@@ -255,16 +165,10 @@ static void registry_handle_global(
 }
 
 static void xdg_surface_handle_configure(void *data, struct xdg_surface *xdg_surface, uint32_t serial) {
-  // 1. Acknowledge the configuration
-  printf("YOLO\n");
   xdg_surface_ack_configure(xdg_surface, serial);
-
   if (WAYLAND_WINDOW.wait_for_configure) {
-    // redraw(NULL, 0);
     WAYLAND_WINDOW.wait_for_configure = false;
   }
-  // 2. Now it is safe to draw! 
-  // Usually, you'd set a flag here or call your redraw function.
 }
 
 static void handle_xdg_toplevel_configure(void *data, struct xdg_toplevel *xdg_toplevel, int32_t width, int32_t height, struct wl_array *states)
@@ -427,15 +331,12 @@ int OWM_initWaylandBackend(OWM_Backend *out_backend) {
   OWM_WAYLAND_RENDER_CONTEXT.queued_buffer_idx = 1;
   OWM_WAYLAND_RENDER_CONTEXT.next_buffer_idx = 2;
 
-  // wl_surface_attach(WAYLAND_WINDOW.surface, OWM_WAYLAND_RENDER_CONTEXT.frame_buffers[0].wl_buffer, 0, 0);
-  // wl_surface_damage(WAYLAND_WINDOW.surface, 0, 0, WAYLAND_WINDOW.width, WAYLAND_WINDOW.height);
-  // wl_surface_commit(WAYLAND_WINDOW.surface);
-
+  out_backend->type = OWM_BACKEND_TYPE_WAYLAND;
   out_backend->getDisplayWidth = getWidth;
   out_backend->getDisplayHeight = getHeight;
   out_backend->dispatch = dispatch;
-  out_backend->aquireFreeFrameBuffer = OWM_waylandAquireFreeFrameBuffer;
-  out_backend->swapBuffers = OWM_waylandFlipRenderContext;
+  out_backend->aquireFreeFrameBuffer = aquireFreeFrameBuffer;
+  out_backend->swapBuffers = swapBuffers;
   return 0;
   xdg_toplevel_destroy(WAYLAND_WINDOW.xdg_toplevel);
 init_failure_xdg_toplevel:
@@ -454,13 +355,10 @@ init_failure_display:
 
 void OWM_shutdownWaylandBackend() {
   for (int i = 0; i < FB_COUNT; ++i) {
-    printf("Doing %d\n", i);
     WaylandFrameBuffer *wfb = &OWM_WAYLAND_RENDER_CONTEXT.frame_buffers[i];
     munmap(wfb->frame_buffer.pixels, wfb->size);
     wl_buffer_destroy(wfb->wl_buffer);
-    printf("Done %d\n", i);
   }
-  printf("Done\n");
 
   xdg_toplevel_destroy(WAYLAND_WINDOW.xdg_toplevel);
   xdg_surface_destroy(WAYLAND_WINDOW.xdg_surface);

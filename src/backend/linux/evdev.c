@@ -49,7 +49,7 @@ OWM_EventPollData OWM_EVENT_POLL_DATAS = { 0 };
 OWM_EvDevKeyboards OWM_KEYBOARDS = { NULL, 0 };
 OWM_EvDevMice OWM_MICE = { NULL, 0 };
 
-bool isKeyboard(uint8_t *ev_bits, uint8_t *key_bits) {
+static bool isKeyboard(uint8_t *ev_bits, uint8_t *key_bits) {
   if (!test_bit(EV_KEY, ev_bits)) { // Check for key capability
     return false;
   }
@@ -62,7 +62,7 @@ bool isKeyboard(uint8_t *ev_bits, uint8_t *key_bits) {
   return true;
 }
 
-bool isMouse(uint8_t *ev_bits, uint8_t *key_bits) {
+static bool isMouse(uint8_t *ev_bits, uint8_t *key_bits) {
   if (!test_bit(EV_REL, ev_bits)) { // Check for key capability
     return false;
   }
@@ -72,7 +72,7 @@ bool isMouse(uint8_t *ev_bits, uint8_t *key_bits) {
   return false;
 }
 
-int discoverInputDevices() {
+static int discoverInputDevices() {
   DIR* dir = opendir("/dev/input");
   if (!dir) {
     fprintf(stderr, "Failed to open directory '/dev/input'\n");
@@ -170,7 +170,7 @@ OWM_setupEvDev_failure:
   return 1;
 }
 
-void cleanupInputDevices() {
+static void cleanupInputDevices() {
   for (size_t kbd_idx = 0; kbd_idx < OWM_KEYBOARDS.count; ++kbd_idx) {
     int kbd_fd = OWM_KEYBOARDS.fds[kbd_idx];
     ioctl(kbd_fd, EVIOCGRAB, 0); // Release control of keyboard, even if we didn't grab it just in case
