@@ -273,7 +273,7 @@ void OWM_closeEvDev() {
   free(OWM_EVENT_POLL_DATAS.device_infos);
 }
 
-OWM_KeyCode translateKeyCode(uint16_t key_code) {
+OWM_KeyCode evDevTranslateKeyCode(uint16_t key_code) {
   return (OWM_KeyCode) key_code;
 }
 
@@ -306,7 +306,7 @@ void OWM_pollEvDevEvents() {
       struct input_event ev;
       while (read(fd, &ev, sizeof(ev)) == sizeof(ev)) {
         if (ev.type == EV_KEY) {
-          OWM_submitKeyboardKeyPressCallback(translateKeyCode(ev.code), ev.value ? true : false);
+          OWM_submitKeyboardKeyPressCallback(evDevTranslateKeyCode(ev.code), ev.value ? true : false);
         }
       }
     }
@@ -325,7 +325,7 @@ void OWM_pollEvDevEvents() {
             // TODO: handle scroll wheel
           }
         } else if (ev.type == EV_KEY) {
-          OWM_submitMouseKeyPressCallback(translateKeyCode(ev.code), ev.value ? true : false);
+          OWM_submitMouseKeyPressCallback(evDevTranslateKeyCode(ev.code), ev.value ? true : false);
         } else if (ev.type == EV_SYN && ev.code == SYN_REPORT) { // The mouse "packet" is complete. Dispatch total movement
           OWM_submitMouseMoveCallback(rel_x, rel_y);
           rel_x = 0;

@@ -29,7 +29,7 @@ void mouseMoveCallback(int rel_x, int rel_y) {
 int main() {
   srand(time(NULL)); // Just to get different colors on dummy windows on each run
 
-  if (OWM_init(OWM_BACKEND_TYPE_LINUX)) {
+  if (OWM_init(OWM_BACKEND_TYPE_WAYLAND)) {
     fprintf(stderr, "Failed to initialize owm\n");
     return 1;
   }
@@ -48,7 +48,6 @@ int main() {
 
     OWM_FrameBuffer *frame_buffer;
     if((frame_buffer = backend->aquireFreeFrameBuffer()) != NULL) {
-      printf("Yay\n");
       // Render
       // Clear screen
       // TODO: extract into separete function on BE to clear a given part of the screen
