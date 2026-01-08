@@ -31,6 +31,7 @@ OWM_KeyEventType getKeyEventType(uint16_t key_code, bool pressed) {
 void (*owm_keyboard_key_press_callback)(OWM_KeyCode key_code, OWM_KeyEventType event_type) = NULL;
 void (*owm_mouse_key_press_callback)(OWM_KeyCode key_code, OWM_KeyEventType event_type) = NULL;
 void (*owm_mouse_move_callback)(int rel_x, int rel_y) = NULL;
+void (*owm_mouse_set_position_callback)(int x, int y) = NULL;
 
 void OWM_setKeyboardKeyPressCallback(void (*callback)(OWM_KeyCode key_code, OWM_KeyEventType event_type)) {
   owm_keyboard_key_press_callback = callback;
@@ -44,6 +45,10 @@ void OWM_setMouseKeyPressCallback(void (*callback)(OWM_KeyCode key_code, OWM_Key
   owm_mouse_key_press_callback = callback;
 }
 
+void OWM_setMouseSetPositionCallback(void (*callback)(int x, int y)) {
+  owm_mouse_set_position_callback = callback;
+}
+
 void OWM_submitMouseKeyPressCallback(uint16_t key_code, bool pressed) {
   owm_mouse_key_press_callback(key_code, getKeyEventType(key_code, pressed));
 }
@@ -54,4 +59,8 @@ void OWM_setMouseMoveCallback(void (*callback)(int rel_x, int rel_y)) {
 
 void OWM_submitMouseMoveCallback(int rel_x, int rel_y) {
   owm_mouse_move_callback(rel_x, rel_y);
+}
+
+void OWM_submitMouseSetPositionCallback(int x, int y) {
+  owm_mouse_set_position_callback(x, y);
 }

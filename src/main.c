@@ -4,6 +4,7 @@
 
 #include "backend/backend.h"
 #include "core/cursor.h"
+#include "core/event.h"
 #include "core/input.h"
 #include "owm.h"
 #include "core/window.h"
@@ -26,6 +27,10 @@ void mouseMoveCallback(int rel_x, int rel_y) {
   OWM_processWindowMouseEvent(rel_x, rel_y);
 }
 
+void mouseSetPositionCallback(int x, int y) {
+  OWM_setCursorPosition(x, y);
+}
+
 int main() {
   srand(time(NULL)); // Just to get different colors on dummy windows on each run
 
@@ -42,6 +47,7 @@ int main() {
   OWM_setKeyboardKeyPressCallback(keyboardKeyPressCallback);
   OWM_setMouseKeyPressCallback(mouseKeyPressCallback);
   OWM_setMouseMoveCallback(mouseMoveCallback);
+  OWM_setMouseSetPositionCallback(mouseSetPositionCallback);
 
   while (running) {
     backend->dispatch();

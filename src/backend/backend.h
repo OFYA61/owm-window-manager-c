@@ -8,6 +8,12 @@ typedef enum {
   OWM_BACKEND_TYPE_WAYLAND
 } OWM_BackendType;
 
+typedef enum {
+  OWM_FRAME_BUFFER_STATE_DISPLAYED,
+  OWM_FRAME_BUFFER_STATE_QUEUED,
+  OWM_FRAME_BUFFER_STATE_FREE
+} OWM_FrameBufferState;
+
 typedef struct {
   uint32_t *pixels;
   uint32_t width;

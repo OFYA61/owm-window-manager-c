@@ -171,9 +171,9 @@ owmWindowBorder getResizeBorderSide(owmWindow* window, uint32_t x, uint32_t y) {
   return getBorderSideWithBorderWidth(window, x, y, OWM_RESIZE_BORDER_SIZE);
 }
 
-void renderWindow(size_t window_idx, OWM_FrameBuffer* frameBuffer) {
+void renderWindow(size_t window_idx, OWM_FrameBuffer* frame_buffer) {
   owmWindow* window = &OWM_WINDOWS.windows[window_idx];
-  uint32_t *pixel = frameBuffer->pixels;
+  uint32_t *pixel = frame_buffer->pixels;
 
   uint32_t y_start;
   if (window->pos_y > 0) {
@@ -182,8 +182,8 @@ void renderWindow(size_t window_idx, OWM_FrameBuffer* frameBuffer) {
     y_start = 0;
   }
   uint32_t y_end = window->pos_y + window->height;
-  if (y_end > frameBuffer->height) {
-    y_end = frameBuffer->height - 1;
+  if (y_end >= frame_buffer->height) {
+    y_end = frame_buffer->height - 1;
   }
 
   uint32_t x_start;
@@ -193,11 +193,11 @@ void renderWindow(size_t window_idx, OWM_FrameBuffer* frameBuffer) {
     x_start = 0;
   }
   uint32_t x_end = window->pos_x + window->width;
-  if (x_end > frameBuffer->width) {
-    x_end = frameBuffer->width - 1;
+  if (x_end >= frame_buffer->width) {
+    x_end = frame_buffer->width - 1;
   }
 
-  pixel += (frameBuffer->stride) * y_start;
+  pixel += (frame_buffer->stride) * y_start;
   for (uint32_t y = y_start; y <= y_end; ++y) {
     for (uint32_t x = x_start; x <= x_end; ++x) {
       if (isPointOnVisualBorder(window, x, y)) {
@@ -208,7 +208,7 @@ void renderWindow(size_t window_idx, OWM_FrameBuffer* frameBuffer) {
       }
       pixel[x] = window->color;
     }
-    pixel += frameBuffer->stride;
+    pixel += frame_buffer->stride;
   }
 }
 
@@ -225,8 +225,6 @@ void OWM_renderWindows(OWM_FrameBuffer* frameBuffer) {
 }
 
 void OWM_processWindowMouseEvent(int32_t mouse_delta_x, int32_t mouse_delta_y) {
-  // int32_t mouse_x = OWM_getCursorX();
-  // int32_t mouse_y = OWM_getCursorY();
   if (OWM_WINDOWS.count <= 0) {
     return;
   }

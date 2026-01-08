@@ -21,17 +21,11 @@ typedef struct {
   void *map;
 } OWM_DRMDumbFrameBuffer;
 
-typedef enum {
-  OWM_FB_DISPLAYED,
-  OWM_FB_QUEUED,
-  OWM_FB_FREE
-} OWM_FBState;
-
 typedef struct {
   uint32_t drm_frame_buffer_id;
   uint32_t drm_handle;
   OWM_FrameBuffer frame_buffer;
-  OWM_FBState state;
+  OWM_FrameBufferState state;
 } OWM_DRMFrameBuffer ;
 
 typedef struct {
@@ -89,20 +83,6 @@ int createDRMDumbFrameBuffer(OWM_DRMDumbFrameBuffer *out) {
     return 1;
   }
 
-  // if (drmModeAddFB(
-  //   display->fd_card,
-  //   create.width,
-  //   create.height,
-  //   24,
-  //   32,
-  //   create.pitch,
-  //   create.handle,
-  //   &out->fb_id
-  // )) {
-  //   perror("drmModeAddFB");
-  //   return 1;
-  // }
-
   struct drm_mode_map_dumb map = { 0 };
   map.handle = create.handle;
 
@@ -144,7 +124,7 @@ int createFrameBuffer(OWM_DRMFrameBuffer *out) {
   out->frame_buffer.height = OWM_DRM_SELECTED_DISPLAY_HEIGHT;
   out->frame_buffer.pixels = dumbFB.map;
   out->frame_buffer.stride = dumbFB.pitch / 4; // Divide by 4, since pixel jumps by 4 bytes
-  out->state = OWM_FB_FREE;
+  out->state = OWM_FRAME_BUFFER_STATE_FREE;
   return 0;
 }
 
@@ -241,7 +221,7 @@ int OWM_drmInitRenderContext() {
     return 1;
   }
 
-  OWM_DRM_RENDER_CONTEXT.frame_buffers[OWM_DRM_RENDER_CONTEXT.displayed_buffer_idx].state = OWM_FB_DISPLAYED;
+  OWM_DRM_RENDER_CONTEXT.frame_buffers[OWM_DRM_RENDER_CONTEXT.displayed_buffer_idx].state = OWM_FRAME_BUFFER_STATE_DISPLAYED;
 
   // Initial atomic request to setup rendering
   drmModeAtomicReq *atomicReq = drmModeAtomicAlloc();
@@ -287,12 +267,12 @@ void OWM_drmShutdownRenderContext() {
 }
 
 OWM_FrameBuffer* OWM_drmAquireFreeFrameBuffer() {
-  if (OWM_DRM_RENDER_CONTEXT.frame_buffers[OWM_DRM_RENDER_CONTEXT.next_buffer_idx].state != OWM_FB_FREE) {
+  if (OWM_DRM_RENDER_CONTEXT.frame_buffers[OWM_DRM_RENDER_CONTEXT.next_buffer_idx].state != OWM_FRAME_BUFFER_STATE_FREE) {
     return NULL;
   }
 
   OWM_DRMFrameBuffer *drm_frame_buffer = &OWM_DRM_RENDER_CONTEXT.frame_buffers[OWM_DRM_RENDER_CONTEXT.next_buffer_idx];
-  drm_frame_buffer->state = OWM_FB_QUEUED;
+  drm_frame_buffer->state = OWM_FRAME_BUFFER_STATE_QUEUED;
   OWM_DRM_RENDER_CONTEXT.next_buffer_idx++;
   if (OWM_DRM_RENDER_CONTEXT.next_buffer_idx >= FB_COUNT) {
     OWM_DRM_RENDER_CONTEXT.next_buffer_idx = 0;
@@ -351,7 +331,7 @@ int OWM_drmFlipRenderContext() {
 }
 
 inline bool OWM_drmIsNextBufferFree() {
-  return OWM_DRM_RENDER_CONTEXT.frame_buffers[OWM_DRM_RENDER_CONTEXT.next_buffer_idx].state == OWM_FB_FREE;
+  return OWM_DRM_RENDER_CONTEXT.frame_buffers[OWM_DRM_RENDER_CONTEXT.next_buffer_idx].state == OWM_FRAME_BUFFER_STATE_FREE;
 }
 
 inline uint32_t OWM_drmGetDisplayWidth() {
@@ -377,8 +357,8 @@ void OWM_drmFlipRenderContextHandler(int fd, unsigned int frame, unsigned int se
     OWM_DRM_RENDER_CONTEXT.frame_time = now - OWM_DRM_RENDER_CONTEXT.last_timestamp;
   }
 
-  OWM_DRM_RENDER_CONTEXT.frame_buffers[OWM_DRM_RENDER_CONTEXT.displayed_buffer_idx].state = OWM_FB_FREE; // Old displayed buffer becomes DB_FREE
-  OWM_DRM_RENDER_CONTEXT.frame_buffers[newDisplayedBufferIdx].state = OWM_FB_DISPLAYED; // New disaplyed becomes FB_DISPLAYED
+  OWM_DRM_RENDER_CONTEXT.frame_buffers[OWM_DRM_RENDER_CONTEXT.displayed_buffer_idx].state = OWM_FRAME_BUFFER_STATE_FREE; // Old displayed buffer becomes DB_FREE
+  OWM_DRM_RENDER_CONTEXT.frame_buffers[newDisplayedBufferIdx].state = OWM_FRAME_BUFFER_STATE_DISPLAYED; // New disaplyed becomes FB_DISPLAYED
 
   OWM_DRM_RENDER_CONTEXT.displayed_buffer_idx = newDisplayedBufferIdx;
   OWM_DRM_RENDER_CONTEXT.last_timestamp = now;

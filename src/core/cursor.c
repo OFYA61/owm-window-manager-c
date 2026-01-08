@@ -13,6 +13,24 @@ int32_t y_min = 0;
 int32_t y_max = 0;
 uint32_t color = 0x00FFFFFF;
 
+void OWM_setCursorPosition(int new_x, int new_y) {
+  if (new_x < x_min) {
+    x_pos = x_min;
+  } else if (new_x > x_max - 1) {
+    x_pos = x_max - 1;
+  } else {
+    x_pos = new_x;
+  }
+
+  if (new_y < y_min) {
+    y_pos = y_min;
+  } else if (new_y > y_max - 1) {
+    y_pos = y_max - 1;
+  } else {
+    y_pos = new_y;
+  }
+}
+
 void OWM_updateCursorPosition(int delta_x, int delta_y) {
   int32_t new_x_pos = x_pos + delta_x;
   int32_t new_y_pos = y_pos + delta_y;

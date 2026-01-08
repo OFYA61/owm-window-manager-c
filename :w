@@ -50,26 +50,18 @@ typedef struct {
   struct wl_shm *shm;
 } WaylandDisplay;
 
-#define FB_COUNT 3
+#define FB_COUNT 2
 typedef struct {
-  OWM_FrameBuffer frame_buffer;
+  OWM_FrameBuffer frameBuffer;
   struct wl_buffer *wl_buffer;
-  OWM_FrameBufferState state;
+  int busy;
   size_t size;
 } WaylandFrameBuffer;
 
-typedef struct {
-  uint64_t last_timestamp;
-  uint64_t frame_time;
-  WaylandFrameBuffer frame_buffers[FB_COUNT];
-  int displayed_buffer_idx;
-  int queued_buffer_idx;
-  int next_buffer_idx;
-} OWM_WaylandRenderContext;
+WaylandFrameBuffer WAYLAND_FRAME_BUFFERS[FB_COUNT];
 
 WaylandDisplay WAYLAND_DISPLAY = { 0 };
 WaylandWindow WAYLAND_WINDOW = { 0 };
-OWM_WaylandRenderContext OWM_WAYLAND_RENDER_CONTEXT = { 0 };
 
 uint32_t getWidth() {
   return WAYLAND_WINDOW.width;
@@ -83,31 +75,22 @@ void dispatch() {
   wl_display_dispatch(WAYLAND_DISPLAY.display);
 }
 
-OWM_FrameBuffer* OWM_waylandAquireFreeFrameBuffer() {
-  if (OWM_WAYLAND_RENDER_CONTEXT.frame_buffers[OWM_WAYLAND_RENDER_CONTEXT.next_buffer_idx].state != OWM_FRAME_BUFFER_STATE_FREE) {
-    return NULL;
+WaylandFrameBuffer *aquiredFrameBuffer;
+OWM_FrameBuffer* aquireFreeFrameBuffer() {
+  for (int i = 0; i < FB_COUNT; ++i) {
+    WaylandFrameBuffer *wfb = &WAYLAND_FRAME_BUFFERS[i];
+    if (!wfb->busy) {
+      aquiredFrameBuffer = wfb;
+      return &wfb->frameBuffer;
+    }
   }
-
-  WaylandFrameBuffer *drm_frame_buffer = &OWM_WAYLAND_RENDER_CONTEXT.frame_buffers[OWM_WAYLAND_RENDER_CONTEXT.next_buffer_idx];
-  drm_frame_buffer->state = OWM_FRAME_BUFFER_STATE_QUEUED;
-  OWM_WAYLAND_RENDER_CONTEXT.next_buffer_idx++;
-  if (OWM_WAYLAND_RENDER_CONTEXT.next_buffer_idx >= FB_COUNT) {
-    OWM_WAYLAND_RENDER_CONTEXT.next_buffer_idx = 0;
-  }
-  return &drm_frame_buffer->frame_buffer;
+  return NULL;
 }
 
-int OWM_waylandFlipRenderContext() {
-  WaylandFrameBuffer *wfb = &OWM_WAYLAND_RENDER_CONTEXT.frame_buffers[OWM_WAYLAND_RENDER_CONTEXT.queued_buffer_idx];
-  wl_surface_attach(WAYLAND_WINDOW.surface, wfb->wl_buffer, 0, 0);
+int swapBuffers() {
+  wl_surface_attach(WAYLAND_WINDOW.surface, aquiredFrameBuffer->wl_buffer, 0, 0);
   wl_surface_damage(WAYLAND_WINDOW.surface, 0, 0, WAYLAND_WINDOW.width, WAYLAND_WINDOW.height);
   wl_surface_commit(WAYLAND_WINDOW.surface);
-
-  OWM_WAYLAND_RENDER_CONTEXT.queued_buffer_idx++;
-  if (OWM_WAYLAND_RENDER_CONTEXT.queued_buffer_idx >= FB_COUNT) {
-    OWM_WAYLAND_RENDER_CONTEXT.queued_buffer_idx = 0;
-  }
-
   return 0;
 }
 
@@ -125,13 +108,11 @@ OWM_KeyCode waylandTranslateKeyCode(uint16_t key_code) {
   return (OWM_KeyCode) key_code;
 }
 
-static int last_mouse_x = 0;
-static int last_mouse_y = 0;
+static int last_x = 0;
+static int last_y = 0;
 
 static void pointer_handle_enter(void *data, struct wl_pointer *pointer, uint32_t serial, struct wl_surface *surface, wl_fixed_t surface_x, wl_fixed_t surface_y) {
-  last_mouse_x = (int) wl_fixed_to_double(surface_x);
-  last_mouse_y = (int) wl_fixed_to_double(surface_y);
-  OWM_submitMouseSetPositionCallback(last_mouse_x, last_mouse_y);
+  // printf("Mouse entered to window at (%d, %d)\n", (int) wl_fixed_to_double(surface_x), (int) wl_fixed_to_double(surface_y));
 }
 
 static void pointer_handle_leave(void *data, struct wl_pointer *pointer, uint32_t serial, struct wl_surface *surface) {
@@ -139,21 +120,21 @@ static void pointer_handle_leave(void *data, struct wl_pointer *pointer, uint32_
 }
 
 static void pointer_handle_motion(void *data, struct wl_pointer *pointer, uint32_t time, wl_fixed_t x, wl_fixed_t y) {
-  int new_x = (int) wl_fixed_to_double(x);
-  int new_y = (int) wl_fixed_to_double(y);
-  OWM_submitMouseMoveCallback(new_x - last_mouse_x, new_y - last_mouse_y);
-  last_mouse_x = new_x;
-  last_mouse_y = new_y;
+  printf("Mouse moved to (%d, %d)\n", (int) wl_fixed_to_double(x), (int) wl_fixed_to_double(y));
+  OWM_submitMouseMoveCallback(int rel_x, int rel_y);
 }
 
 static void pointer_handle_button(void *data, struct wl_pointer *pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state) {
-  OWM_submitMouseKeyPressCallback((OWM_KeyCode) button, state ? true : false);
+  printf("Mouse button %u %s\n", button, state ? "pressed" : "released");
+  OWM_submitMouseKeyPressCallback((OWM_KeyCode) button, state ? true : false)
 }
 
 static void pointer_handle_axis(void *data, struct wl_pointer *pointer, uint32_t time, uint32_t axis, int32_t value) {
-  // static int last_value = 0;
-  // int delta = value - last_value;
-  // last_value = value;
+  static int last_value = 0;
+  int delta = value - last_value;
+  last_value = value;
+
+  printf("Mouse axis %u: %d (delta %d)\n", axis, value, delta);
 }
 
 static const struct wl_pointer_listener pointer_listener = {
@@ -304,7 +285,7 @@ static void handle_xdg_toplevel_configure(void *data, struct xdg_toplevel *xdg_t
 static void buffer_release(void *data, struct wl_buffer *buffer)
 {
   WaylandFrameBuffer *wfb = data;
-	wfb->state = OWM_FRAME_BUFFER_STATE_FREE;
+	wfb->busy = 0;
 }
 
 static const struct xdg_surface_listener xdg_surface_listener = {
@@ -410,32 +391,27 @@ int OWM_initWaylandBackend(OWM_Backend *out_backend) {
     );
 
     WaylandFrameBuffer waylandFrameBuffer;
-    waylandFrameBuffer.frame_buffer = frameBuffer;
+    waylandFrameBuffer.frameBuffer = frameBuffer;
     waylandFrameBuffer.wl_buffer = wl_buffer;
-    waylandFrameBuffer.state = OWM_FRAME_BUFFER_STATE_FREE;
+    waylandFrameBuffer.busy = false;
     waylandFrameBuffer.size = size;
 
-    OWM_WAYLAND_RENDER_CONTEXT.frame_buffers[i] = waylandFrameBuffer;
+    WAYLAND_FRAME_BUFFERS[i] = waylandFrameBuffer;
 
-    wl_buffer_add_listener(wl_buffer, &buffer_listener, &OWM_WAYLAND_RENDER_CONTEXT.frame_buffers[i]);
+    wl_buffer_add_listener(wl_buffer, &buffer_listener, &WAYLAND_FRAME_BUFFERS[i]);
 
     wl_shm_pool_destroy(pool);
   }
 
-  OWM_WAYLAND_RENDER_CONTEXT.last_timestamp = 0;
-  OWM_WAYLAND_RENDER_CONTEXT.displayed_buffer_idx = 0;
-  OWM_WAYLAND_RENDER_CONTEXT.queued_buffer_idx = 1;
-  OWM_WAYLAND_RENDER_CONTEXT.next_buffer_idx = 2;
-
-  // wl_surface_attach(WAYLAND_WINDOW.surface, OWM_WAYLAND_RENDER_CONTEXT.frame_buffers[0].wl_buffer, 0, 0);
-  // wl_surface_damage(WAYLAND_WINDOW.surface, 0, 0, WAYLAND_WINDOW.width, WAYLAND_WINDOW.height);
-  // wl_surface_commit(WAYLAND_WINDOW.surface);
+  wl_surface_attach(WAYLAND_WINDOW.surface, WAYLAND_FRAME_BUFFERS[0].wl_buffer, 0, 0);
+  wl_surface_damage(WAYLAND_WINDOW.surface, 0, 0, WAYLAND_WINDOW.width, WAYLAND_WINDOW.height);
+  wl_surface_commit(WAYLAND_WINDOW.surface);
 
   out_backend->getDisplayWidth = getWidth;
   out_backend->getDisplayHeight = getHeight;
   out_backend->dispatch = dispatch;
-  out_backend->aquireFreeFrameBuffer = OWM_waylandAquireFreeFrameBuffer;
-  out_backend->swapBuffers = OWM_waylandFlipRenderContext;
+  out_backend->aquireFreeFrameBuffer = aquireFreeFrameBuffer;
+  out_backend->swapBuffers = swapBuffers;
   return 0;
   xdg_toplevel_destroy(WAYLAND_WINDOW.xdg_toplevel);
 init_failure_xdg_toplevel:
@@ -455,8 +431,8 @@ init_failure_display:
 void OWM_shutdownWaylandBackend() {
   for (int i = 0; i < FB_COUNT; ++i) {
     printf("Doing %d\n", i);
-    WaylandFrameBuffer *wfb = &OWM_WAYLAND_RENDER_CONTEXT.frame_buffers[i];
-    munmap(wfb->frame_buffer.pixels, wfb->size);
+    WaylandFrameBuffer *wfb = &WAYLAND_FRAME_BUFFERS[i];
+    munmap(wfb->frameBuffer.pixels, wfb->size);
     wl_buffer_destroy(wfb->wl_buffer);
     printf("Done %d\n", i);
   }
