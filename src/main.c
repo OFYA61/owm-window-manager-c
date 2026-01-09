@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 #include "backend/backend.h"
@@ -31,10 +32,30 @@ static void mouseSetPositionCallback(int x, int y) {
   OWM_setCursorPosition(x, y);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
   srand(time(NULL)); // Just to get different colors on dummy windows on each run
 
-  if (OWM_init(OWM_BACKEND_TYPE_WAYLAND)) {
+
+  int init_result;
+  if (argc == 1) {
+    init_result = OWM_init(OWM_BACKEND_TYPE_WAYLAND);
+  } else if (argc == 2) {
+    if (strcmp("wayland", argv[1]) == 0) {
+      init_result = OWM_init(OWM_BACKEND_TYPE_WAYLAND);
+    } else if (strcmp("linux", argv[1]) == 0) {
+      init_result = OWM_init(OWM_BACKEND_TYPE_LINUX);
+    } else {
+      fprintf(stderr, "Got unexpcted argument '%s'\n", argv[1]);
+      goto wrong_argument_exit;
+      return 1;
+    }
+  } else {
+  wrong_argument_exit:
+    fprintf(stderr, "Usage:\n\twm\n\twm wayland -- to run in wayland compositor\n\twm linux -- to run in TTY mode, requires sudo");
+    return 1;
+  }
+
+  if (init_result) {
     fprintf(stderr, "Failed to initialize owm\n");
     return 1;
   }
